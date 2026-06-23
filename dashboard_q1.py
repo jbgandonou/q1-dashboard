@@ -137,6 +137,40 @@ def count_answered(row) -> int:
     return n
 
 
+def detect_duplicates(df: pd.DataFrame) -> pd.Series:
+    """Doublons consécutifs par enquêteur et arrondissement.
+
+    Deux soumissions sont considérées comme doublons quand :
+    - même enquêteur ET même arrondissement,
+    - consécutives dans le temps (aucune autre soumission entre les deux
+      pour ce couple enquêteur+arrondissement),
+    - valeurs identiques sur toutes les colonnes SURVEY_COLS remplies,
+    - au moins 8 colonnes non vides en commun.
+
+    Seule la deuxième occurrence est marquée.
+    """
+    survey_vals = df[SURVEY_COLS].fillna("")
+    enq = df["metadata_terrain/id_enqueteur"].fillna("")
+    arr = df["metadata_terrain/arrondissement"].fillna("")
+    ts = pd.to_datetime(df["start"], errors="coerce", utc=True)
+    is_dup = pd.Series(False, index=df.index)
+    for key in (enq + "||" + arr).unique():
+        mask = (enq + "||" + arr) == key
+        idx = ts[mask].sort_values().index
+        if len(idx) < 2:
+            continue
+        prev = idx[0]
+        prev_filled = {c for c in SURVEY_COLS if survey_vals.loc[prev, c] != ""}
+        for i in idx[1:]:
+            filled = {c for c in SURVEY_COLS if survey_vals.loc[i, c] != ""}
+            common = filled & prev_filled
+            if len(common) >= 8 and all(survey_vals.loc[i, c] == survey_vals.loc[prev, c] for c in common):
+                is_dup.loc[i] = True
+            prev = i
+            prev_filled = filled
+    return is_dup
+
+
 def clean(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out["start_dt"] = pd.to_datetime(out["start"], errors="coerce", utc=True)
@@ -147,7 +181,9 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     out["flag_court"] = out["duration_min"] < out["seuil_min"]
     out["flag_long"] = out["duration_min"] > DURATION_MAX_MIN
     out["flag_a1"] = out["section_a/A1"].isna() | (out["section_a/A1"] == "")
-    out["flagged"] = out["flag_court"] | out["flag_long"] | out["flag_a1"]
+    out["flag_consent"] = out.get("consentement", pd.Series("", index=out.index)).fillna("") != "yes"
+    out["flag_doublon"] = detect_duplicates(out)
+    out["flagged"] = out["flag_court"] | out["flag_long"] | out["flag_a1"] | out["flag_consent"] | out["flag_doublon"]
     out["commune"] = out["metadata_terrain/commune"].fillna("?")
     out["arrondissement"] = out["metadata_terrain/arrondissement"].fillna("?")
     out["enqueteur"] = out["metadata_terrain/id_enqueteur"].fillna("?")
@@ -466,11 +502,13 @@ st.markdown("---")
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_detail = st.tabs([
+tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_detail = st.tabs([
     "Quotas",
     "Profil échantillon",
     "Qualité",
     "Timeline",
+    "Doublons",
+    "Consentement",
     "Exclusions",
 ])
 
@@ -626,6 +664,8 @@ with tab_qualite:
         f_court = int(df["flag_court"].sum())
         f_long = int(df["flag_long"].sum())
         f_a1 = int(df["flag_a1"].sum())
+        f_consent = int(df["flag_consent"].sum())
+        f_doublon = int(df["flag_doublon"].sum())
 
         st.markdown(f"""
         <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:20px;margin-bottom:16px">
@@ -639,8 +679,10 @@ with tab_qualite:
                 f"Durée < seuil (n_questions x {SEC_PER_QUESTION}s)",
                 f"Durée > {DURATION_MAX_MIN} min",
                 "Role (A1) manquant",
+                "Consentement absent",
+                "Doublon consécutif",
             ],
-            "n": [f_court, f_long, f_a1],
+            "n": [f_court, f_long, f_a1, f_consent, f_doublon],
         }), hide_index=True, use_container_width=True)
 
         st.markdown(f"""
@@ -717,11 +759,85 @@ with tab_timeline:
     st.caption("Cible : 640 exploitables")
 
 
-# ── Tab 4 : Détail exclusions ──────────────────────────────────────────
+# ── Tab 4 : Doublons ──────────────────────────────────────────────────
+
+with tab_doublons:
+    df_dups = df[df["flag_doublon"]]
+    n_dups = len(df_dups)
+
+    st.subheader(f"Doublons détectés : {n_dups}")
+
+    st.markdown(
+        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
+        'padding:14px 18px;margin-bottom:16px;font-size:13px;color:#1e40af">'
+        '<strong>Méthode de détection</strong><br>'
+        'Deux soumissions sont considérées comme doublons quand elles proviennent du '
+        '<strong>même enquêteur</strong>, du <strong>même arrondissement</strong>, '
+        'sont <strong>consécutives</strong> dans le temps, et ont des '
+        '<strong>valeurs identiques</strong> sur au moins 8 colonnes substantives remplies. '
+        'Seule la deuxième occurrence est exclue.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if n_dups == 0:
+        st.success("Aucun doublon détecté.")
+    else:
+        dup_cols = df_dups[["_id", "date", "commune", "arrondissement", "enqueteur",
+                            "role", "n_answered", "duration_min"]].copy()
+        dup_cols["duration_min"] = dup_cols["duration_min"].round(1)
+        dup_cols.columns = ["ID", "Date", "Commune", "Arrondissement", "Enquêteur",
+                            "Rôle", "Questions", "Durée (min)"]
+        st.dataframe(dup_cols.sort_values("Date"), hide_index=True, use_container_width=True)
+
+        st.markdown("##### Par enquêteur")
+        dup_enq = df_dups.groupby("enqueteur").size().reset_index(name="Doublons")
+        dup_enq.columns = ["Enquêteur", "Doublons"]
+        st.dataframe(dup_enq.sort_values("Doublons", ascending=False), hide_index=True, use_container_width=True)
+
+
+# ── Tab 5 : Consentement ─────────────────────────────────────────────
+
+with tab_consent:
+    df_no_consent = df[df["flag_consent"]]
+    n_nc = len(df_no_consent)
+
+    st.subheader(f"Consentement absent : {n_nc}")
+
+    st.markdown(
+        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
+        'padding:14px 18px;margin-bottom:16px;font-size:13px;color:#1e40af">'
+        '<strong>Critère</strong><br>'
+        'Toute soumission dont le champ <code>consentement</code> n\'est pas '
+        '<code>yes</code> est exclue. Le skip logic du formulaire bloque la suite '
+        'du questionnaire, ces réponses sont donc vides.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    if n_nc == 0:
+        st.success("Toutes les soumissions ont le consentement.")
+    else:
+        nc_cols = df_no_consent[["_id", "date", "commune", "arrondissement", "enqueteur",
+                                  "n_answered", "duration_min"]].copy()
+        nc_cols["duration_min"] = nc_cols["duration_min"].round(1)
+        # Retrieve raw consent value
+        nc_cols["consentement"] = df_no_consent.get("consentement", pd.Series("", index=df_no_consent.index)).fillna("(vide)")
+        nc_cols.columns = ["ID", "Date", "Commune", "Arrondissement", "Enquêteur",
+                           "Questions", "Durée (min)", "Valeur consentement"]
+        st.dataframe(nc_cols.sort_values("Date"), hide_index=True, use_container_width=True)
+
+        st.markdown("##### Par enquêteur")
+        nc_enq = df_no_consent.groupby("enqueteur").size().reset_index(name="Refus")
+        nc_enq.columns = ["Enquêteur", "Refus"]
+        st.dataframe(nc_enq.sort_values("Refus", ascending=False), hide_index=True, use_container_width=True)
+
+
+# ── Tab 6 : Détail exclusions ──────────────────────────────────────────
 
 with tab_detail:
     st.subheader(f"{len(df_flag)} soumissions exclues")
-    ff = st.selectbox("Filtrer", ["Tous", "Trop court", "Trop long", "A1 manquant"], key="ff")
+    ff = st.selectbox("Filtrer", ["Tous", "Trop court", "Trop long", "A1 manquant", "Consentement", "Doublon"], key="ff")
     show = df_flag.copy()
     if ff == "Trop court":
         show = show[show["flag_court"]]
@@ -729,6 +845,10 @@ with tab_detail:
         show = show[show["flag_long"]]
     elif ff == "A1 manquant":
         show = show[show["flag_a1"]]
+    elif ff == "Consentement":
+        show = show[show["flag_consent"]]
+    elif ff == "Doublon":
+        show = show[show["flag_doublon"]]
 
     cols = show[["_id", "date", "commune", "arrondissement", "enqueteur", "role",
                   "n_answered", "seuil_min", "duration_min"]].copy()
