@@ -370,6 +370,57 @@ k4, k5, k6 = st.columns(3)
 k4.metric("Arrond. atteints", f"{n_atteints} / 52")
 k5.metric("Jours", jours)
 k6.metric("Rythme", f"{len(df_ok) // max(jours, 1)} / jour")
+
+# ── Alertes collecte (toujours visible) ────────────────────────────────
+
+_n = len(df_ok)
+_n_f = (df_ok["genre"] == "F").sum()
+_pct_f = _n_f / _n * 100 if _n else 0
+_n_int = (df_ok["role"] == "intermediary").sum()
+_pct_int = _n_int / _n * 100 if _n else 0
+_n_none_edu = (df_ok["education"] == "none").sum()
+_pct_none_edu = _n_none_edu / _n * 100 if _n else 0
+_pct_45plus = ((df_ok["age"] == "45-54").sum() + (df_ok["age"] == "55+").sum()) / _n * 100 if _n else 0
+_pct_none_primary = ((df_ok["education"] == "none").sum() + (df_ok["education"] == "primary").sum()) / _n * 100 if _n else 0
+
+_alerts = []
+if _pct_f < 40:
+    _deficit_f = round((0.40 * 640 - _n_f) / max(640 - _n, 1) * 100)
+    _alerts.append(("Femmes sous-représentées", f"Actuellement {_pct_f:.0f}% (cible 40–60%). Sur les {640-_n} restants, viser ~{min(_deficit_f,70)}% de femmes.", "#dc2626"))
+elif _pct_f > 60:
+    _alerts.append(("Trop de femmes", f"Actuellement {_pct_f:.0f}%. Prioriser les hommes.", "#dc2626"))
+if _pct_none_edu < 10:
+    _alerts.append(("Sans instruction sous-représentés", f"Actuellement {_pct_none_edu:.0f}% (RGPH-4 Ouémé ~30%). Cibler marchés, zones rurales, personnes âgées.", "#dc2626"))
+if _pct_int < 10:
+    _alerts.append(("Intermédiaires insuffisants", f"Actuellement {_pct_int:.0f}% (cible 10–25%). Recruter dans les cybercafés.", "#f59e0b"))
+if _pct_45plus < 10:
+    _alerts.append(("45+ ans sous-représentés", f"Actuellement {_pct_45plus:.0f}%. Cibler bureaux de quartier, chefs de ménage.", "#f59e0b"))
+if _pct_none_primary < 25:
+    _alerts.append(("Faible littératie sous-représentée", f"Sans instruction + primaire = {_pct_none_primary:.0f}% (RGPH-4 ~55%). Mode assisté en zone rurale.", "#f59e0b"))
+
+if _alerts:
+    if any(a[2] == "#dc2626" for a in _alerts):
+        _bg, _bd = "#fef2f2", "#fecaca"
+        _title = "Actions prioritaires pour la suite de la collecte"
+        _icon = "🚨"
+    else:
+        _bg, _bd = "#fffbeb", "#fed7aa"
+        _title = "Points d'attention"
+        _icon = "⚠️"
+    _html = f'<div style="background:{_bg};border:1px solid {_bd};border-radius:12px;padding:18px 22px;margin:16px 0">'
+    _html += f'<div style="font-weight:700;font-size:15px;color:#1e293b;margin-bottom:10px">{_icon} {_title}</div>'
+    for t, m, c in _alerts:
+        _html += f'<div style="margin-bottom:6px"><span style="color:{c};font-weight:700;font-size:13px">{t}</span> <span style="color:#475569;font-size:13px">— {m}</span></div>'
+    _html += '</div>'
+    st.markdown(_html, unsafe_allow_html=True)
+else:
+    st.markdown(
+        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 22px;margin:16px 0">'
+        '<span style="font-weight:700;color:#166534">✅ Profil équilibré</span> — Tous les indicateurs sont dans les fourchettes cibles.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
 st.markdown("---")
 
 
@@ -414,43 +465,6 @@ with tab_demo:
         st.markdown(gauge_card("18–24 ans", pct_young, *TARGETS["age_18_24_pct"]), unsafe_allow_html=True)
     with g4:
         st.markdown(gauge_card("Sans instruction", pct_none_edu, *TARGETS["edu_none_pct"]), unsafe_allow_html=True)
-
-    # Recommendations
-    alerts = []
-    if pct_f < 40:
-        deficit_f = round((0.40 * 640 - n_f) / max(640 - n, 1) * 100)
-        alerts.append(("Femmes sous-représentées", f"Actuellement {pct_f:.0f}% (cible 40-60%). Sur les {640-n} restants, viser ~{min(deficit_f,70)}% de femmes pour rééquilibrer.", "#dc2626"))
-    elif pct_f > 60:
-        alerts.append(("Trop de femmes", f"Actuellement {pct_f:.0f}%. Prioriser les hommes sur les prochaines collectes.", "#dc2626"))
-    if pct_none_edu < 10:
-        alerts.append(("Personnes sans instruction sous-représentées", f"Actuellement {pct_none_edu:.0f}% (RGPH-4 Ouémé ~30% sans instruction). Cibler les marchés, les zones rurales, les personnes âgées.", "#dc2626"))
-    if pct_int < 10:
-        alerts.append(("Intermédiaires sous-représentés", f"Actuellement {pct_int:.0f}% (cible 10-25%). Recruter davantage dans les cybercafés et centres de services.", "#f59e0b"))
-    pct_45plus = ((df_ok["age"] == "45-54").sum() + (df_ok["age"] == "55+").sum()) / n * 100 if n else 0
-    if pct_45plus < 10:
-        alerts.append(("45+ ans sous-représentés", f"Actuellement {pct_45plus:.0f}% seulement. Cibler les bureaux de quartier et les chefs de ménage.", "#f59e0b"))
-    pct_none_primary = ((df_ok["education"] == "none").sum() + (df_ok["education"] == "primary").sum()) / n * 100 if n else 0
-    if pct_none_primary < 25:
-        alerts.append(("Faible littératie sous-représentée", f"Sans instruction + primaire = {pct_none_primary:.0f}% (RGPH-4 Ouémé ~55%). Administrer davantage en mode assisté dans les zones rurales.", "#f59e0b"))
-    if not alerts:
-        alerts.append(("Profil équilibré", "Tous les indicateurs sont dans les fourchettes cibles.", "#16a34a"))
-
-    if any(a[2] == "#dc2626" for a in alerts):
-        box_bg, box_border = "#fef2f2", "#fecaca"
-        box_title = "Actions prioritaires pour la suite de la collecte"
-    elif any(a[2] == "#f59e0b" for a in alerts):
-        box_bg, box_border = "#fffbeb", "#fed7aa"
-        box_title = "Points d'attention"
-    else:
-        box_bg, box_border = "#f0fdf4", "#bbf7d0"
-        box_title = "Profil équilibré"
-
-    alert_html = f'<div style="background:{box_bg};border:1px solid {box_border};border-radius:12px;padding:18px 22px;margin:12px 0 20px 0">'
-    alert_html += f'<div style="font-weight:700;font-size:14px;color:#1e293b;margin-bottom:10px">{box_title}</div>'
-    for title, msg, color in alerts:
-        alert_html += f'<div style="margin-bottom:8px"><span style="color:{color};font-weight:700">{title}</span> — <span style="color:#475569;font-size:13px">{msg}</span></div>'
-    alert_html += '</div>'
-    st.markdown(alert_html, unsafe_allow_html=True)
 
     st.markdown("---")
 
