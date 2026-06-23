@@ -137,7 +137,7 @@ def count_answered(row) -> int:
     return n
 
 
-def detect_duplicates(df: pd.DataFrame) -> pd.Series:
+def detect_duplicates(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     """Doublons consécutifs par enquêteur et arrondissement.
 
     Deux soumissions sont considérées comme doublons quand :
@@ -148,12 +148,17 @@ def detect_duplicates(df: pd.DataFrame) -> pd.Series:
     - au moins 8 colonnes non vides en commun.
 
     Seule la deuxième occurrence est marquée.
+
+    Returns:
+        is_dup: boolean Series — True pour la deuxième occurrence.
+        dup_of: Series — _id de l'original pour chaque doublon, NaN sinon.
     """
     survey_vals = df[SURVEY_COLS].fillna("")
     enq = df["metadata_terrain/id_enqueteur"].fillna("")
     arr = df["metadata_terrain/arrondissement"].fillna("")
     ts = pd.to_datetime(df["start"], errors="coerce", utc=True)
     is_dup = pd.Series(False, index=df.index)
+    dup_of = pd.Series(pd.NA, index=df.index)
     for key in (enq + "||" + arr).unique():
         mask = (enq + "||" + arr) == key
         idx = ts[mask].sort_values().index
@@ -166,9 +171,10 @@ def detect_duplicates(df: pd.DataFrame) -> pd.Series:
             common = filled & prev_filled
             if len(common) >= 8 and all(survey_vals.loc[i, c] == survey_vals.loc[prev, c] for c in common):
                 is_dup.loc[i] = True
+                dup_of.loc[i] = df.loc[prev, "_id"]
             prev = i
             prev_filled = filled
-    return is_dup
+    return is_dup, dup_of
 
 
 def clean(df: pd.DataFrame) -> pd.DataFrame:
@@ -182,7 +188,7 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     out["flag_long"] = out["duration_min"] > DURATION_MAX_MIN
     out["flag_a1"] = out["section_a/A1"].isna() | (out["section_a/A1"] == "")
     out["flag_consent"] = out.get("consentement", pd.Series("", index=out.index)).fillna("") != "yes"
-    out["flag_doublon"] = detect_duplicates(out)
+    out["flag_doublon"], out["doublon_de"] = detect_duplicates(out)
     out["flagged"] = out["flag_court"] | out["flag_long"] | out["flag_a1"] | out["flag_consent"] | out["flag_doublon"]
     out["commune"] = out["metadata_terrain/commune"].fillna("?")
     out["arrondissement"] = out["metadata_terrain/arrondissement"].fillna("?")
@@ -783,17 +789,40 @@ with tab_doublons:
     if n_dups == 0:
         st.success("Aucun doublon détecté.")
     else:
-        dup_cols = df_dups[["_id", "date", "commune", "arrondissement", "enqueteur",
-                            "role", "n_answered", "duration_min"]].copy()
-        dup_cols["duration_min"] = dup_cols["duration_min"].round(1)
-        dup_cols.columns = ["ID", "Date", "Commune", "Arrondissement", "Enquêteur",
-                            "Rôle", "Questions", "Durée (min)"]
-        st.dataframe(dup_cols.sort_values("Date"), hide_index=True, use_container_width=True)
+        pair_fields = ["_id", "date", "commune", "arrondissement", "enqueteur",
+                       "role", "n_answered", "duration_min"]
+        for idx, dup_row in df_dups.iterrows():
+            orig_id = dup_row.get("doublon_de")
+            orig_rows = df[df["_id"] == orig_id]
+            orig_row = orig_rows.iloc[0] if len(orig_rows) else None
 
-        st.markdown("##### Par enquêteur")
-        dup_enq = df_dups.groupby("enqueteur").size().reset_index(name="Doublons")
-        dup_enq.columns = ["Enquêteur", "Doublons"]
-        st.dataframe(dup_enq.sort_values("Doublons", ascending=False), hide_index=True, use_container_width=True)
+            st.markdown(f"##### Paire — {dup_row['enqueteur']} / {dup_row['arrondissement']}")
+
+            rows = []
+            if orig_row is not None:
+                rows.append({"Statut": "Original (conservé)", "ID": orig_row["_id"],
+                             "Date": orig_row["date"], "Commune": orig_row["commune"],
+                             "Arrondissement": orig_row["arrondissement"],
+                             "Enquêteur": orig_row["enqueteur"], "Rôle": orig_row["role"],
+                             "Questions": orig_row["n_answered"],
+                             "Durée (min)": round(orig_row["duration_min"], 1)})
+            rows.append({"Statut": "Doublon (exclu)", "ID": dup_row["_id"],
+                         "Date": dup_row["date"], "Commune": dup_row["commune"],
+                         "Arrondissement": dup_row["arrondissement"],
+                         "Enquêteur": dup_row["enqueteur"], "Rôle": dup_row["role"],
+                         "Questions": dup_row["n_answered"],
+                         "Durée (min)": round(dup_row["duration_min"], 1)})
+
+            pair_df = pd.DataFrame(rows)
+            st.dataframe(pair_df, hide_index=True, use_container_width=True)
+
+            if orig_row is not None:
+                common_cols = [c for c in SURVEY_COLS
+                               if str(df.loc[idx, c]) not in ("", "nan", "None", "NaN")
+                               and str(orig_rows.iloc[0].get(c, "")) not in ("", "nan", "None", "NaN")]
+                st.caption(f"{len(common_cols)} colonnes identiques sur {len(SURVEY_COLS)}")
+
+            st.markdown("---")
 
 
 # ── Tab 5 : Consentement ─────────────────────────────────────────────
