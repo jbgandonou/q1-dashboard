@@ -220,7 +220,10 @@ def gauge_card(label: str, value: float, lo: float, hi: float, unit: str = "%") 
 
 CUSTOM_CSS = """
 <style>
-    .block-container { padding-top: 1.5rem; max-width: 1200px; }
+    /* ── Base ── */
+    .block-container { padding-top: 1.5rem; }
+
+    /* ── Metrics ── */
     div[data-testid="stMetric"] {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
         border: 1px solid #e2e8f0; border-radius: 12px;
@@ -233,26 +236,88 @@ CUSTOM_CSS = """
     div[data-testid="stMetric"] [data-testid="stMetricValue"] {
         font-size: 26px !important; font-weight: 800 !important; color: #0f172a !important;
     }
+
+    /* ── Typography ── */
     h1 { font-weight: 800 !important; letter-spacing: -.5px; }
     h2 { font-weight: 700 !important; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
     .stTabs [data-baseweb="tab"] { font-weight: 600; }
+
+    /* ── Tables responsive ── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     table th {
         background: #f8fafc; color: #475569; font-weight: 700;
         text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e8f0;
         font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
+        white-space: nowrap;
     }
     table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
     table tr:hover td { background: #f8fafc; }
+
+    /* Wrap HTML tables in scrollable container */
+    .element-container:has(table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* ── Cards ── */
     .enq-card {
         border-radius: 10px; padding: 14px 18px; margin-bottom: 6px;
         display: flex; justify-content: space-between; align-items: center;
+        flex-wrap: wrap; gap: 8px;
     }
     .section-label {
         font-size: 11px; color: #94a3b8; text-transform: uppercase;
         letter-spacing: .6px; font-weight: 600; margin-bottom: 12px;
     }
+
+    /* ── Mobile responsive ── */
+    @media (max-width: 768px) {
+        .block-container { padding: 1rem 0.5rem !important; }
+
+        /* Stack metrics vertically */
+        div[data-testid="stHorizontalBlock"] {
+            flex-wrap: wrap !important;
+        }
+        div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+            min-width: 45% !important; flex: 1 1 45% !important;
+        }
+
+        /* Smaller metric text */
+        div[data-testid="stMetric"] { padding: 10px 14px; }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+            font-size: 20px !important;
+        }
+
+        /* Table font */
+        table { font-size: 11px; }
+        table th, table td { padding: 6px 8px; }
+
+        /* Gauge cards */
+        .gauge-row { flex-direction: column !important; }
+
+        /* Header */
+        h1 { font-size: 1.4rem !important; }
+
+        /* Tabs scroll */
+        .stTabs [data-baseweb="tab-list"] {
+            overflow-x: auto; flex-wrap: nowrap;
+            -webkit-overflow-scrolling: touch;
+        }
+        .stTabs [data-baseweb="tab"] {
+            font-size: 13px; padding: 6px 12px; white-space: nowrap;
+        }
+    }
+
+    @media (max-width: 480px) {
+        div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
+            min-width: 100% !important; flex: 1 1 100% !important;
+        }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+            font-size: 18px !important;
+        }
+        table { font-size: 10px; }
+    }
 </style>
+
+<!-- Viewport meta for mobile -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 """
 
 
@@ -297,10 +362,11 @@ pct_global = round(len(df_ok) / 640 * 100)
 # ── KPI strip ──────────────────────────────────────────────────────────
 
 st.markdown("---")
-k1, k2, k3, k4, k5, k6 = st.columns(6)
+k1, k2, k3 = st.columns(3)
 k1.metric("Brutes", f"{len(df):,}")
 k2.metric("Exploitables", f"{len(df_ok):,}", delta=f"{len(df_flag)} exclues", delta_color="inverse")
 k3.metric("Progression", f"{pct_global}%", delta=f"{len(df_ok)} / 640")
+k4, k5, k6 = st.columns(3)
 k4.metric("Arrond. atteints", f"{n_atteints} / 52")
 k5.metric("Jours", jours)
 k6.metric("Rythme", f"{len(df_ok) // max(jours, 1)} / jour")
@@ -338,11 +404,12 @@ with tab_demo:
 
     st.markdown('<div class="section-label">Indicateurs démographiques — échantillon exploitable</div>', unsafe_allow_html=True)
 
-    g1, g2, g3, g4 = st.columns(4)
+    g1, g2 = st.columns(2)
     with g1:
         st.markdown(gauge_card("Femmes", pct_f, *TARGETS["genre_f_pct"]), unsafe_allow_html=True)
     with g2:
         st.markdown(gauge_card("Intermédiaires", pct_int, *TARGETS["role_int_pct"]), unsafe_allow_html=True)
+    g3, g4 = st.columns(2)
     with g3:
         st.markdown(gauge_card("18–24 ans", pct_young, *TARGETS["age_18_24_pct"]), unsafe_allow_html=True)
     with g4:
@@ -351,7 +418,8 @@ with tab_demo:
     st.markdown("---")
 
     # Detailed breakdowns
-    d1, d2, d3, d4 = st.columns(4)
+    d1, d2 = st.columns(2)
+    d3, d4 = st.columns(2)
 
     with d1:
         st.markdown("##### Genre")
