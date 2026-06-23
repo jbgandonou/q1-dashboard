@@ -309,9 +309,9 @@ st.markdown("---")
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_demo, tab_quotas, tab_qualite, tab_timeline, tab_detail = st.tabs([
-    "Profil échantillon",
+tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_detail = st.tabs([
     "Quotas",
+    "Profil échantillon",
     "Qualité",
     "Timeline",
     "Exclusions",
