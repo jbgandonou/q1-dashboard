@@ -203,25 +203,33 @@ def progress_html(pct: int, width: str = "100%") -> str:
 
 def gauge_card(label: str, value: float, lo: float, hi: float, unit: str = "%") -> str:
     if lo <= value <= hi:
-        color, icon, bg = "#16a34a", "check_circle", "#f0fdf4"
+        color, bg = "#16a34a", "#f0fdf4"
     elif value < lo:
-        color, icon, bg = "#dc2626", "arrow_downward", "#fef2f2"
+        color, bg = "#dc2626", "#fef2f2"
     else:
-        color, icon, bg = "#dc2626", "arrow_upward", "#fef2f2"
-    return f"""
-    <div style="background:{bg};border-radius:12px;padding:16px 20px;text-align:center;border:1px solid {color}22">
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:.5px;font-weight:600">{label}</div>
-        <div style="font-size:32px;font-weight:800;color:{color};margin:4px 0">{value:.0f}{unit}</div>
-        <div style="font-size:11px;color:#94a3b8">cible : {lo:.0f}–{hi:.0f}{unit}</div>
-    </div>"""
+        color, bg = "#dc2626", "#fef2f2"
+    return (
+        f'<div class="gauge" style="background:{bg};border:1px solid {color}22">'
+        f'<div class="gauge-label">{label}</div>'
+        f'<div class="gauge-value" style="color:{color}">{value:.0f}{unit}</div>'
+        f'<div class="gauge-target">cible : {lo:.0f}–{hi:.0f}{unit}</div>'
+        f'</div>'
+    )
+
+
+def wrap_table(html: str) -> str:
+    """Wrap an HTML table in a scrollable container."""
+    return f'<div class="table-scroll">{html}</div>'
 
 
 # ── Styles ──────────────────────────────────────────────────────────────
 
 CUSTOM_CSS = """
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <style>
     /* ── Base ── */
     .block-container { padding-top: 1.5rem; }
+    section.main > div.block-container { max-width: 100%; }
 
     /* ── Metrics ── */
     div[data-testid="stMetric"] {
@@ -236,25 +244,32 @@ CUSTOM_CSS = """
     div[data-testid="stMetric"] [data-testid="stMetricValue"] {
         font-size: 26px !important; font-weight: 800 !important; color: #0f172a !important;
     }
+    div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        font-size: 12px !important;
+    }
 
     /* ── Typography ── */
     h1 { font-weight: 800 !important; letter-spacing: -.5px; }
     h2 { font-weight: 700 !important; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
     .stTabs [data-baseweb="tab"] { font-weight: 600; }
 
-    /* ── Tables responsive ── */
+    /* ── Scrollable table wrapper ── */
+    .table-scroll {
+        width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;
+        border: 1px solid #e2e8f0; border-radius: 10px;
+    }
+    .table-scroll table { margin: 0; border: none; min-width: 600px; }
+
+    /* ── Tables ── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     table th {
         background: #f8fafc; color: #475569; font-weight: 700;
         text-align: left; padding: 10px 12px; border-bottom: 2px solid #e2e8f0;
         font-size: 11px; text-transform: uppercase; letter-spacing: .4px;
-        white-space: nowrap;
+        white-space: nowrap; position: sticky; top: 0; z-index: 1;
     }
     table td { padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
     table tr:hover td { background: #f8fafc; }
-
-    /* Wrap HTML tables in scrollable container */
-    .element-container:has(table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
     /* ── Cards ── */
     .enq-card {
@@ -267,57 +282,82 @@ CUSTOM_CSS = """
         letter-spacing: .6px; font-weight: 600; margin-bottom: 12px;
     }
 
-    /* ── Mobile responsive ── */
+    /* ── Alert box ── */
+    .alert-box { border-radius: 12px; padding: 16px 20px; margin: 16px 0; }
+    .alert-box .alert-title { font-weight: 700; font-size: 15px; color: #1e293b; margin-bottom: 8px; }
+    .alert-box .alert-item { margin-bottom: 5px; line-height: 1.5; }
+
+    /* ── Gauge ── */
+    .gauge { border-radius: 12px; padding: 14px 16px; text-align: center; }
+    .gauge .gauge-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    .gauge .gauge-value { font-size: 28px; font-weight: 800; margin: 2px 0; }
+    .gauge .gauge-target { font-size: 10px; color: #94a3b8; }
+
+    /* ── Tablet ── */
     @media (max-width: 768px) {
-        .block-container { padding: 1rem 0.5rem !important; }
+        .block-container { padding: 0.8rem 0.5rem !important; }
 
-        /* Stack metrics vertically */
-        div[data-testid="stHorizontalBlock"] {
-            flex-wrap: wrap !important;
-        }
+        /* Columns → wrap 2-up */
+        div[data-testid="stHorizontalBlock"] { flex-wrap: wrap !important; gap: 8px !important; }
         div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
-            min-width: 45% !important; flex: 1 1 45% !important;
+            min-width: calc(50% - 8px) !important; flex: 1 1 calc(50% - 8px) !important;
         }
 
-        /* Smaller metric text */
-        div[data-testid="stMetric"] { padding: 10px 14px; }
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            font-size: 20px !important;
-        }
+        div[data-testid="stMetric"] { padding: 10px 12px; }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 20px !important; }
+        div[data-testid="stMetric"] label { font-size: 10px !important; }
+        div[data-testid="stMetric"] [data-testid="stMetricDelta"] { font-size: 11px !important; }
 
-        /* Table font */
         table { font-size: 11px; }
         table th, table td { padding: 6px 8px; }
+        .table-scroll table { min-width: 500px; }
 
-        /* Gauge cards */
-        .gauge-row { flex-direction: column !important; }
+        h1 { font-size: 1.3rem !important; }
+        h2 { font-size: 1.1rem !important; }
 
-        /* Header */
-        h1 { font-size: 1.4rem !important; }
-
-        /* Tabs scroll */
         .stTabs [data-baseweb="tab-list"] {
-            overflow-x: auto; flex-wrap: nowrap;
-            -webkit-overflow-scrolling: touch;
+            overflow-x: auto; flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch; scrollbar-width: none;
         }
-        .stTabs [data-baseweb="tab"] {
-            font-size: 13px; padding: 6px 12px; white-space: nowrap;
-        }
+        .stTabs [data-baseweb="tab-list"]::-webkit-scrollbar { display: none; }
+        .stTabs [data-baseweb="tab"] { font-size: 12px; padding: 6px 10px; white-space: nowrap; flex-shrink: 0; }
+
+        .gauge .gauge-value { font-size: 24px; }
+        .gauge .gauge-label { font-size: 9px; }
+
+        .alert-box { padding: 14px 16px; }
+        .alert-box .alert-title { font-size: 14px; }
+        .alert-box .alert-item { font-size: 12px; }
+
+        .enq-card { padding: 10px 14px; }
+        .enq-card div:first-child div:first-child { font-size: 13px !important; }
+        .enq-card div:last-child div:first-child { font-size: 18px !important; }
     }
 
+    /* ── Phone ── */
     @media (max-width: 480px) {
+        .block-container { padding: 0.5rem 0.3rem !important; }
+
+        /* Columns → full width stack */
         div[data-testid="stHorizontalBlock"] > div[data-testid="stColumn"] {
             min-width: 100% !important; flex: 1 1 100% !important;
         }
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] {
-            font-size: 18px !important;
-        }
+
+        div[data-testid="stMetric"] { padding: 8px 10px; }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 18px !important; }
+
         table { font-size: 10px; }
+        table th, table td { padding: 4px 6px; }
+        .table-scroll table { min-width: 400px; }
+
+        h1 { font-size: 1.1rem !important; }
+
+        .gauge { padding: 10px 12px; }
+        .gauge .gauge-value { font-size: 22px; }
+
+        .alert-box .alert-item span { display: block; }
     }
 </style>
-
-<!-- Viewport meta for mobile -->
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 """
 
 
@@ -407,15 +447,15 @@ if _alerts:
         _bg, _bd = "#fffbeb", "#fed7aa"
         _title = "Points d'attention"
         _icon = "⚠️"
-    _html = f'<div style="background:{_bg};border:1px solid {_bd};border-radius:12px;padding:18px 22px;margin:16px 0">'
-    _html += f'<div style="font-weight:700;font-size:15px;color:#1e293b;margin-bottom:10px">{_icon} {_title}</div>'
+    _html = f'<div class="alert-box" style="background:{_bg};border:1px solid {_bd}">'
+    _html += f'<div class="alert-title">{_icon} {_title}</div>'
     for t, m, c in _alerts:
-        _html += f'<div style="margin-bottom:6px"><span style="color:{c};font-weight:700;font-size:13px">{t}</span> <span style="color:#475569;font-size:13px">— {m}</span></div>'
+        _html += f'<div class="alert-item"><span style="color:{c};font-weight:700">{t}</span> <span style="color:#475569">— {m}</span></div>'
     _html += '</div>'
     st.markdown(_html, unsafe_allow_html=True)
 else:
     st.markdown(
-        '<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 22px;margin:16px 0">'
+        '<div class="alert-box" style="background:#f0fdf4;border:1px solid #bbf7d0">'
         '<span style="font-weight:700;color:#166534">✅ Profil équilibré</span> — Tous les indicateurs sont dans les fourchettes cibles.'
         '</div>',
         unsafe_allow_html=True,
@@ -552,8 +592,8 @@ with tab_quotas:
     disp["Statut"] = disp["Statut"].map(lambda s: f'{status_icons.get(s, "")} {s}')
 
     st.markdown(
-        disp[["Commune", "Arrondissement", "Strate", "Cible", "Collecté", "Restant", "Progression", "Statut"]]
-        .to_html(escape=False, index=False),
+        wrap_table(disp[["Commune", "Arrondissement", "Strate", "Cible", "Collecté", "Restant", "Progression", "Statut"]]
+        .to_html(escape=False, index=False)),
         unsafe_allow_html=True,
     )
 
@@ -565,14 +605,14 @@ with tab_quotas:
         ca = qt.groupby("Commune").agg(Cible=("Cible", "sum"), Collecté=("Collecté", "sum"), Restant=("Restant", "sum")).reset_index()
         ca["Taux"] = (ca["Collecté"] / ca["Cible"] * 100).round(0).astype(int)
         ca["Progression"] = ca["Taux"].apply(progress_html)
-        st.markdown(ca[["Commune", "Cible", "Collecté", "Restant", "Progression"]].to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.markdown(wrap_table(ca[["Commune", "Cible", "Collecté", "Restant", "Progression"]].to_html(escape=False, index=False)), unsafe_allow_html=True)
 
     with c_strate:
         st.markdown("##### Par strate")
         sa = qt.groupby("Strate").agg(Cible=("Cible", "sum"), Collecté=("Collecté", "sum"), Restant=("Restant", "sum")).reset_index()
         sa["Taux"] = (sa["Collecté"] / sa["Cible"] * 100).round(0).astype(int)
         sa["Progression"] = sa["Taux"].apply(progress_html)
-        st.markdown(sa[["Strate", "Cible", "Collecté", "Restant", "Progression"]].to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.markdown(wrap_table(sa[["Strate", "Cible", "Collecté", "Restant", "Progression"]].to_html(escape=False, index=False)), unsafe_allow_html=True)
 
 
 # ── Tab 2 : Qualité ────────────────────────────────────────────────────
