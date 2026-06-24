@@ -649,6 +649,7 @@ with tab_quotas:
         ca = qt.groupby("Commune").agg(Cible=("Cible", "sum"), Collecté=("Collecté", "sum"), Restant=("Restant", "sum")).reset_index()
         ca["Taux"] = (ca["Collecté"] / ca["Cible"] * 100).round(0).astype(int)
         ca["Progression"] = ca["Taux"].apply(progress_html)
+        ca = ca.sort_values("Taux", ascending=False)
         st.markdown(wrap_table(ca[["Commune", "Cible", "Collecté", "Restant", "Progression"]].to_html(escape=False, index=False)), unsafe_allow_html=True)
 
     with c_strate:
