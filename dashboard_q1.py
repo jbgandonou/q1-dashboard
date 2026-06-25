@@ -61,7 +61,7 @@ PLAN = {
     ("adjohoun", "kode"): ("ADJOHOUN", "Kodé", "Rural / Dégradée", 5),
     ("adjohoun", "togbota"): ("ADJOHOUN", "Togbota", "Rural / Dégradée", 5),
     ("aguegues", "avagbodji"): ("AGUEGUES", "Avagbodji", "Rural / Connectée", 7),
-    ("aguegues", "houedome"): ("AGUEGUES", "Houedomè", "Rural / Connectée", 8),
+    ("aguegues", "houedomey-ag"): ("AGUEGUES", "Houedomè", "Rural / Connectée", 8),
     ("aguegues", "zoungame"): ("AGUEGUES", "Zoungamè", "Rural / Connectée", 10),
     ("akpro-misserete", "akpro-misserete-centre"): ("AKPRO-MISSERETE", "Akpro-Missérété", "Urbain / Connectée", 24),
     ("akpro-misserete", "gome-sota"): ("AKPRO-MISSERETE", "Gomè-Sota", "Rural / Connectée", 9),
@@ -69,7 +69,7 @@ PLAN = {
     ("akpro-misserete", "vakon"): ("AKPRO-MISSERETE", "Vakon", "Urbain / Connectée", 23),
     ("akpro-misserete", "zoungbome"): ("AKPRO-MISSERETE", "Zoungbomè", "Rural / Connectée", 8),
     ("avrankou", "atchoukpa"): ("AVRANKOU", "Atchoukpa", "Rural / Connectée", 20),
-    ("avrankou", "avrankou"): ("AVRANKOU", "Avrankou", "Urbain / Connectée", 12),
+    ("avrankou", "avrankou-centre"): ("AVRANKOU", "Avrankou", "Urbain / Connectée", 12),
     ("avrankou", "djomon"): ("AVRANKOU", "Djomon", "Rural / Connectée", 13),
     ("avrankou", "gbozounme"): ("AVRANKOU", "Gbozounmè", "Rural / Connectée", 6),
     ("avrankou", "kouty"): ("AVRANKOU", "Kouty", "Rural / Connectée", 11),
@@ -438,7 +438,8 @@ df_flag = df[df["flagged"]]
 qt = build_quota_table(df_ok)
 n_atteints = (qt["Statut"] == "Atteint").sum()
 jours = df["date"].nunique()
-pct_global = round(len(df_ok) / 640 * 100)
+CIBLE_TOTALE = 640
+pct_global = round(len(df_ok) / CIBLE_TOTALE * 100)
 
 
 # ── KPI strip ──────────────────────────────────────────────────────────
@@ -447,7 +448,7 @@ st.markdown("---")
 k1, k2, k3 = st.columns(3)
 k1.metric("Brutes", f"{len(df):,}")
 k2.metric("Exploitables", f"{len(df_ok):,}", delta=f"{len(df_flag)} exclues", delta_color="inverse")
-k3.metric("Progression", f"{pct_global}%", delta=f"{len(df_ok)} / 640")
+k3.metric("Progression", f"{pct_global}%", delta=f"{len(df_ok)} / {CIBLE_TOTALE}")
 k4, k5, k6 = st.columns(3)
 k4.metric("Arrond. atteints", f"{n_atteints} / 52")
 k5.metric("Jours", jours)
@@ -467,8 +468,8 @@ _pct_none_primary = ((df_ok["education"] == "none").sum() + (df_ok["education"] 
 
 _alerts = []
 if _pct_f < 40:
-    _deficit_f = round((0.40 * 640 - _n_f) / max(640 - _n, 1) * 100)
-    _alerts.append(("Femmes sous-représentées", f"Actuellement {_pct_f:.0f}% (cible 40–60%). Sur les {640-_n} restants, viser ~{min(_deficit_f,70)}% de femmes.", "#dc2626"))
+    _deficit_f = round((0.40 * CIBLE_TOTALE - _n_f) / max(CIBLE_TOTALE - _n, 1) * 100)
+    _alerts.append(("Femmes sous-représentées", f"Actuellement {_pct_f:.0f}% (cible 40–60%). Sur les {CIBLE_TOTALE-_n} restants, viser ~{min(_deficit_f,70)}% de femmes.", "#dc2626"))
 elif _pct_f > 60:
     _alerts.append(("Trop de femmes", f"Actuellement {_pct_f:.0f}%. Prioriser les hommes.", "#dc2626"))
 if _pct_none_edu < 10:
@@ -763,7 +764,7 @@ with tab_timeline:
     cumul["Cumul brut"] = cumul["Brutes"].cumsum()
     cumul["Cumul exploitable"] = cumul["Exploitables"].cumsum()
     st.line_chart(cumul, x="date", y=["Cumul brut", "Cumul exploitable"], color=["#94a3b8", "#6366f1"])
-    st.caption("Cible : 640 exploitables")
+    st.caption(f"Cible : {CIBLE_TOTALE} exploitables")
 
 
 # ── Tab 4 : Doublons ──────────────────────────────────────────────────
