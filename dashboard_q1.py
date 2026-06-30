@@ -461,6 +461,10 @@ _pct_inc = _c5_yes / len(df_ok) * 100 if len(df_ok) else 0
 
 _pct_intermed = used_intermed_top.sum() / len(df_ok) * 100 if len(df_ok) else 0
 
+_b7_pop_top = df_ok[used_intermed_top & is_citizen_top]
+_b7_contrainte = _b7_pop_top["section_b/B7"].isin(["no_device", "no_skill"]).sum()
+_pct_contrainte_top = _b7_contrainte / len(_b7_pop_top) * 100 if len(_b7_pop_top) else 0
+
 
 _c1_cit = pd.to_numeric(df_ok.loc[is_citizen_top & used_intermed_top, "section_c/C1q"], errors="coerce").dropna()
 _c1_int = pd.to_numeric(df_ok.loc[is_interm_top, "section_c/C1q_int"], errors="coerce").dropna()
@@ -526,17 +530,20 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_k1, _k2, _k3, _k4 = st.columns(4)
+_k1, _k2, _k3, _k4, _k5 = st.columns(5)
 with _k1:
     st.markdown(_kpi(f"{_pct_intermed:.0f}%", "passent par un tiers",
                      f"{used_intermed_top.sum()} sur {len(df_ok)}"), unsafe_allow_html=True)
 with _k2:
+    st.markdown(_kpi(f"{_pct_contrainte_top:.0f}%", "n'ont pas le choix",
+                     "pas de terminal ou de compétence"), unsafe_allow_html=True)
+with _k3:
     st.markdown(_kpi(f"{_pct_pwd:.0f}%", "donnent leur mot de passe",
                      f"{_b3_yes} sur {len(_b3_pop)} via intermédiaire", danger=True), unsafe_allow_html=True)
-with _k3:
+with _k4:
     st.markdown(_kpi(f"{_pct_p3:.0f}%", "document non remis",
                      "transite par l'intermédiaire"), unsafe_allow_html=True)
-with _k4:
+with _k5:
     st.markdown(_kpi(f"{_pct_inc:.0f}%", "signalent des abus",
                      f"{_c5_yes} sur {len(df_ok)}"), unsafe_allow_html=True)
 
