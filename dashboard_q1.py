@@ -77,7 +77,7 @@ PLAN = {
     ("avrankou", "sado"): ("AVRANKOU", "Sado", "Rural / Connectée", 5),
     ("bonou", "affame"): ("BONOU", "Affamè", "Rural / Dégradée", 5),
     ("bonou", "atchonsa"): ("BONOU", "Atchonsa", "Rural / Dégradée", 5),
-    ("bonou", "bonou"): ("BONOU", "Bonou", "Urbain / Dégradée", 7),
+    ("bonou", "bonou-centre"): ("BONOU", "Bonou", "Urbain / Dégradée", 7),
     ("bonou", "dame-wogon"): ("BONOU", "Dame-Wogon", "Rural / Dégradée", 5),
     ("bonou", "hounvigue"): ("BONOU", "Hounviguè", "Rural / Dégradée", 5),
     ("dangbo", "dangbo-centre"): ("DANGBO", "Dangbo", "Urbain / Connectée", 7),
