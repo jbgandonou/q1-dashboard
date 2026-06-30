@@ -530,20 +530,33 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-_k1, _k2, _k3, _k4, _k5 = st.columns(5)
+_n_intermed = used_intermed_top.sum()
+
+def _kpi_large(val1: str, lbl1: str, val2: str, lbl2: str) -> str:
+    return (
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:22px 20px;text-align:center">'
+        f'<div style="font-size:44px;font-weight:800;color:#0f172a;line-height:1">{val1}</div>'
+        f'<div style="font-size:11px;font-weight:700;color:#475569;margin-top:10px;text-transform:uppercase;letter-spacing:.8px">{lbl1}</div>'
+        f'<div style="margin-top:14px;padding-top:14px;border-top:1px solid #e2e8f0">'
+        f'<span style="font-size:28px;font-weight:800;color:#991b1b">{val2}</span>'
+        f'<div style="font-size:11px;font-weight:700;color:#991b1b;margin-top:4px;text-transform:uppercase;letter-spacing:.8px">{lbl2}</div>'
+        f'</div></div>'
+    )
+
+
+_k1, _k2, _k3, _k4 = st.columns([1.3, 1, 1, 1])
 with _k1:
-    st.markdown(_kpi(f"{_pct_intermed:.0f}%", "passent par un tiers",
-                     f"{used_intermed_top.sum()} sur {len(df_ok)}"), unsafe_allow_html=True)
+    st.markdown(_kpi_large(
+        f"{_n_intermed}", f"citoyens passent par un intermédiaire ({_pct_intermed:.0f}%)",
+        f"{_b7_contrainte}", f"n'ont pas le choix ({_pct_contrainte_top:.0f}%)",
+    ), unsafe_allow_html=True)
 with _k2:
-    st.markdown(_kpi(f"{_pct_contrainte_top:.0f}%", "n'ont pas le choix",
-                     "pas de terminal ou de compétence"), unsafe_allow_html=True)
-with _k3:
     st.markdown(_kpi(f"{_pct_pwd:.0f}%", "donnent leur mot de passe",
-                     f"{_b3_yes} sur {len(_b3_pop)} via intermédiaire", danger=True), unsafe_allow_html=True)
-with _k4:
+                     f"{_b3_yes} sur {_n_intermed} via intermédiaire", danger=True), unsafe_allow_html=True)
+with _k3:
     st.markdown(_kpi(f"{_pct_p3:.0f}%", "document non remis",
                      "transite par l'intermédiaire"), unsafe_allow_html=True)
-with _k5:
+with _k4:
     st.markdown(_kpi(f"{_pct_inc:.0f}%", "signalent des abus",
                      f"{_c5_yes} sur {len(df_ok)}"), unsafe_allow_html=True)
 
