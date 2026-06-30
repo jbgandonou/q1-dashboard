@@ -442,74 +442,133 @@ CIBLE_TOTALE = 640
 pct_global = round(len(df_ok) / CIBLE_TOTALE * 100)
 
 
-# ── KPI strip ──────────────────────────────────────────────────────────
+# ── Danger KPIs (toujours visibles, avant les onglets) ────────────────
 
-st.markdown("---")
-k1, k2, k3 = st.columns(3)
-k1.metric("Brutes", f"{len(df):,}")
-k2.metric("Exploitables", f"{len(df_ok):,}", delta=f"{len(df_flag)} exclues", delta_color="inverse")
-k3.metric("Progression", f"{pct_global}%", delta=f"{len(df_ok)} / {CIBLE_TOTALE}")
-k4, k5, k6 = st.columns(3)
-k4.metric("Arrond. atteints", f"{n_atteints} / 52")
-k5.metric("Jours", jours)
-k6.metric("Rythme", f"{len(df_ok) // max(jours, 1)} / jour")
+is_citizen_top = df_ok["role"] == "citizen"
+is_interm_top = df_ok["role"] == "intermediary"
+used_intermed_top = df_ok["section_b/B2"].isin(["intermediary", "relative"])
 
-# ── Alertes collecte (toujours visible) ────────────────────────────────
+_b3_pop = df_ok[used_intermed_top & is_citizen_top]
+_b3_yes = (_b3_pop["section_b/B3"] == "yes").sum()
+_pct_pwd = _b3_yes / len(_b3_pop) * 100 if len(_b3_pop) else 0
 
-_n = len(df_ok)
-_n_f = (df_ok["genre"] == "F").sum()
-_pct_f = _n_f / _n * 100 if _n else 0
-_n_int = (df_ok["role"] == "intermediary").sum()
-_pct_int = _n_int / _n * 100 if _n else 0
-_n_none_edu = (df_ok["education"] == "none").sum()
-_pct_none_edu = _n_none_edu / _n * 100 if _n else 0
-_pct_45plus = ((df_ok["age"] == "45-54").sum() + (df_ok["age"] == "55+").sum()) / _n * 100 if _n else 0
-_pct_none_primary = ((df_ok["education"] == "none").sum() + (df_ok["education"] == "primary").sum()) / _n * 100 if _n else 0
+_b4_pop = df_ok[used_intermed_top & is_citizen_top]
+_b4_not_direct = _b4_pop["section_b/B4"].isin(["handed", "kept", "unknown"])
+_pct_p3 = _b4_not_direct.sum() / len(_b4_pop) * 100 if len(_b4_pop) else 0
 
-_alerts = []
-if _pct_f < 40:
-    _deficit_f = round((0.40 * CIBLE_TOTALE - _n_f) / max(CIBLE_TOTALE - _n, 1) * 100)
-    _alerts.append(("Femmes sous-représentées", f"Actuellement {_pct_f:.0f}% (cible 40–60%). Sur les {CIBLE_TOTALE-_n} restants, viser ~{min(_deficit_f,70)}% de femmes.", "#dc2626"))
-elif _pct_f > 60:
-    _alerts.append(("Trop de femmes", f"Actuellement {_pct_f:.0f}%. Prioriser les hommes.", "#dc2626"))
-if _pct_none_edu < 10:
-    _alerts.append(("Sans instruction sous-représentés", f"Actuellement {_pct_none_edu:.0f}% (RGPH-4 Ouémé ~30%). Cibler marchés, zones rurales, personnes âgées.", "#dc2626"))
-if _pct_int < 10:
-    _alerts.append(("Intermédiaires insuffisants", f"Actuellement {_pct_int:.0f}% (cible 10–25%). Recruter dans les cybercafés.", "#f59e0b"))
-if _pct_45plus < 10:
-    _alerts.append(("45+ ans sous-représentés", f"Actuellement {_pct_45plus:.0f}%. Cibler bureaux de quartier, chefs de ménage.", "#f59e0b"))
-if _pct_none_primary < 25:
-    _alerts.append(("Faible littératie sous-représentée", f"Sans instruction + primaire = {_pct_none_primary:.0f}% (RGPH-4 ~55%). Mode assisté en zone rurale.", "#f59e0b"))
+_c5_yes = (df_ok["section_c/C5q"] == "yes").sum()
+_pct_inc = _c5_yes / len(df_ok) * 100 if len(df_ok) else 0
 
-if _alerts:
-    if any(a[2] == "#dc2626" for a in _alerts):
-        _bg, _bd = "#fef2f2", "#fecaca"
-        _title = "Actions prioritaires pour la suite de la collecte"
-        _icon = "🚨"
-    else:
-        _bg, _bd = "#fffbeb", "#fed7aa"
-        _title = "Points d'attention"
-        _icon = "⚠️"
-    _html = f'<div class="alert-box" style="background:{_bg};border:1px solid {_bd}">'
-    _html += f'<div class="alert-title">{_icon} {_title}</div>'
-    for t, m, c in _alerts:
-        _html += f'<div class="alert-item"><span style="color:{c};font-weight:700">{t}</span> <span style="color:#475569">— {m}</span></div>'
-    _html += '</div>'
-    st.markdown(_html, unsafe_allow_html=True)
-else:
-    st.markdown(
-        '<div class="alert-box" style="background:#f0fdf4;border:1px solid #bbf7d0">'
-        '<span style="font-weight:700;color:#166534">✅ Profil équilibré</span> — Tous les indicateurs sont dans les fourchettes cibles.'
-        '</div>',
-        unsafe_allow_html=True,
+_pct_intermed = used_intermed_top.sum() / len(df_ok) * 100 if len(df_ok) else 0
+
+
+_c1_cit = pd.to_numeric(df_ok.loc[is_citizen_top & used_intermed_top, "section_c/C1q"], errors="coerce").dropna()
+_c1_int = pd.to_numeric(df_ok.loc[is_interm_top, "section_c/C1q_int"], errors="coerce").dropna()
+_c2_cit = pd.to_numeric(df_ok.loc[is_citizen_top & used_intermed_top, "section_c/C2q"], errors="coerce").dropna()
+_c2_int = pd.to_numeric(df_ok.loc[is_interm_top, "section_c/C2q_int"], errors="coerce").dropna()
+_mean_conf = _c1_cit.mean() if len(_c1_cit) else 0
+_mean_conf_int = _c1_int.mean() if len(_c1_int) else 0
+_mean_sec = _c2_cit.mean() if len(_c2_cit) else 0
+_mean_sec_int = _c2_int.mean() if len(_c2_int) else 0
+
+_v1_verdict = f"Score de {_mean_conf:.1f}/5, pourtant {_pct_pwd:.0f}% partagent leur mot de passe"
+_v2_verdict = ("Inquiétude déclarée, mais les pratiques ne changent pas"
+               if _mean_sec >= 3 else "Peu d'inquiétude — le risque n'est pas perçu")
+
+
+def _kpi(value: str, label: str, detail: str, danger: bool = False) -> str:
+    if danger:
+        return (
+            f'<div style="background:#991b1b;border-radius:10px;padding:22px 16px;text-align:center">'
+            f'<div style="font-size:44px;font-weight:800;color:#fff;line-height:1">{value}</div>'
+            f'<div style="font-size:11px;font-weight:700;color:#fecaca;margin-top:10px;text-transform:uppercase;letter-spacing:.8px">{label}</div>'
+            f'<div style="font-size:11px;color:#fca5a5;margin-top:3px">{detail}</div>'
+            f'</div>'
+        )
+    return (
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:22px 16px;text-align:center">'
+        f'<div style="font-size:44px;font-weight:800;color:#0f172a;line-height:1">{value}</div>'
+        f'<div style="font-size:11px;font-weight:700;color:#475569;margin-top:10px;text-transform:uppercase;letter-spacing:.8px">{label}</div>'
+        f'<div style="font-size:11px;color:#94a3b8;margin-top:3px">{detail}</div>'
+        f'</div>'
     )
+
+
+def _score_card(question: str, v_cit: float, n_cit: int, v_int: float, n_int: int,
+                verdict: str, accent: str) -> str:
+    return (
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 24px">'
+        f'<div style="font-size:12px;font-weight:600;color:#475569;margin-bottom:16px">{question}</div>'
+        f'<div style="display:flex;gap:28px;align-items:baseline">'
+        f'<div>'
+        f'<span style="font-size:38px;font-weight:800;color:#0f172a">{v_cit:.1f}</span>'
+        f'<span style="font-size:15px;color:#94a3b8">/5</span>'
+        f'<div style="font-size:11px;color:#94a3b8;margin-top:2px">citoyens (n={n_cit})</div>'
+        f'</div>'
+        f'<div>'
+        f'<span style="font-size:38px;font-weight:800;color:#0f172a">{v_int:.1f}</span>'
+        f'<span style="font-size:15px;color:#94a3b8">/5</span>'
+        f'<div style="font-size:11px;color:#94a3b8;margin-top:2px">intermédiaires (n={n_int})</div>'
+        f'</div>'
+        f'</div>'
+        f'<div style="margin-top:14px;padding:8px 12px;background:{accent}10;border-left:3px solid {accent};'
+        f'border-radius:0 6px 6px 0;font-size:12px;color:#334155">{verdict}</div>'
+        f'</div>'
+    )
+
+
+st.markdown(
+    '<div style="margin-bottom:4px">'
+    '<span style="font-size:26px;font-weight:800;color:#0f172a;letter-spacing:-.5px">Intermédiation e-gouvernement</span>'
+    f'<div style="font-size:13px;color:#64748b;margin-top:4px">Enquête terrain · Ouémé, Bénin · '
+    f'{len(df_ok)} répondants · {is_citizen_top.sum()} citoyens · {is_interm_top.sum()} intermédiaires</div>'
+    '</div>',
+    unsafe_allow_html=True,
+)
+
+_k1, _k2, _k3, _k4 = st.columns(4)
+with _k1:
+    st.markdown(_kpi(f"{_pct_intermed:.0f}%", "passent par un tiers",
+                     f"{used_intermed_top.sum()} sur {len(df_ok)}"), unsafe_allow_html=True)
+with _k2:
+    st.markdown(_kpi(f"{_pct_pwd:.0f}%", "donnent leur mot de passe",
+                     f"{_b3_yes} sur {len(_b3_pop)} médiés", danger=True), unsafe_allow_html=True)
+with _k3:
+    st.markdown(_kpi(f"{_pct_p3:.0f}%", "document non remis",
+                     "transite par l'intermédiaire"), unsafe_allow_html=True)
+with _k4:
+    st.markdown(_kpi(f"{_pct_inc:.0f}%", "signalent des abus",
+                     f"{_c5_yes} sur {len(df_ok)}"), unsafe_allow_html=True)
+
+st.markdown(
+    '<div style="font-size:16px;font-weight:800;color:#0f172a;margin-top:20px">'
+    'Les citoyens font confiance — les faits disent le contraire</div>'
+    '<div style="font-size:12px;color:#94a3b8;margin-bottom:4px">'
+    'Score moyen de confiance sur 5</div>',
+    unsafe_allow_html=True,
+)
+
+_cc1, _cc2 = st.columns(2)
+with _cc1:
+    st.markdown(_score_card(
+        "« Faites-vous confiance à l'intermédiaire ? »",
+        _mean_conf, len(_c1_cit), _mean_conf_int, len(_c1_int),
+        _v1_verdict, "#dc2626",
+    ), unsafe_allow_html=True)
+with _cc2:
+    st.markdown(_score_card(
+        "« La sécurité de vos données vous inquiète ? »",
+        _mean_sec, len(_c2_cit), _mean_sec_int, len(_c2_int),
+        _v2_verdict, "#d97706",
+    ), unsafe_allow_html=True)
 
 st.markdown("---")
 
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_detail = st.tabs([
+tab_resultats, tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_detail = st.tabs([
+    "Résultats clés",
     "Quotas",
     "Profil échantillon",
     "Qualité",
@@ -518,6 +577,164 @@ tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_
     "Consentement",
     "Exclusions",
 ])
+
+
+# ── Tab Résultats clés ────────────────────────────────────────────────
+
+with tab_resultats:
+    used_intermed = used_intermed_top
+    is_citizen = is_citizen_top
+    is_interm = is_interm_top
+
+    # Calculs complémentaires pour ce tab
+    b3i_pop = df_ok[is_interm]
+    b3i_yes = (b3i_pop["section_b/B3_int"] == "yes").sum()
+
+    b9_pop = df_ok[used_intermed]
+    b9_cols = ["section_b/B9", "section_b/B9_int"]
+    b9_multi = sum(1 for _, r in b9_pop.iterrows() if any(r.get(c) == "multiple" for c in b9_cols))
+    pct_multi = b9_multi / len(b9_pop) * 100 if len(b9_pop) else 0
+
+    # --- Pourquoi l'intermédiation ? (B7) ---
+    res_l, res_r = st.columns(2)
+
+    with res_l:
+        st.markdown("##### Les citoyens n'ont pas le choix")
+        st.caption("Pourquoi confier sa démarche à un tiers ?")
+        b7_pop = df_ok[used_intermed & is_citizen]
+        b7_labels = {
+            "no_device": "Pas de téléphone / ordinateur",
+            "no_skill": "Ne sait pas utiliser Internet",
+            "convenience": "Plus simple / plus rapide",
+            "other": "Autre raison",
+        }
+        if len(b7_pop):
+            b7_counts = b7_pop["section_b/B7"].value_counts()
+            b7_df = b7_counts.reset_index()
+            b7_df.columns = ["Raison", "n"]
+            b7_df["Raison"] = b7_df["Raison"].map(b7_labels).fillna("?")
+            b7_df["%"] = (b7_df["n"] / b7_df["n"].sum() * 100).round(1)
+            contrainte = b7_df[b7_df["Raison"].isin(["Pas de téléphone / ordinateur", "Ne sait pas utiliser Internet"])]["n"].sum()
+            pct_contrainte = contrainte / b7_df["n"].sum() * 100
+            st.dataframe(b7_df, hide_index=True, use_container_width=True)
+            if pct_contrainte >= 50:
+                msg_b7 = (
+                    f'<strong style="color:#dc2626">{pct_contrainte:.0f}% subissent l\'intermédiation</strong> '
+                    f'faute de terminal ou de compétence numérique. '
+                    f'{100 - pct_contrainte:.0f}% choisissent par commodité.'
+                )
+                bg_b7, bd_b7 = "#fef2f2", "#dc2626"
+            else:
+                msg_b7 = (
+                    f'<strong style="color:#ea580c">{100 - pct_contrainte:.0f}% choisissent l\'intermédiation par commodité</strong> — '
+                    f'même quand ils pourraient faire la démarche eux-mêmes. '
+                    f'{pct_contrainte:.0f}% y sont contraints faute de terminal ou de compétence.'
+                )
+                bg_b7, bd_b7 = "#fff7ed", "#ea580c"
+            st.markdown(
+                f'<div style="background:{bg_b7};border-left:3px solid {bd_b7};border-radius:8px;padding:12px 16px;margin-top:8px;font-size:13px">'
+                f'{msg_b7}</div>',
+                unsafe_allow_html=True,
+            )
+
+    # --- Services les plus exposés (B5) ---
+    with res_r:
+        st.markdown("##### Les services les plus sensibles sont les plus exposés")
+        st.caption("Documents manipulés par des tiers non certifiés")
+        b5_labels = {
+            "ravip": "RAVIP — identité biométrique",
+            "birth": "Acte de naissance",
+            "criminal": "Casier judiciaire",
+            "nationality": "Certificat de nationalité",
+            "other": "Autre",
+        }
+        b5_pop = df_ok[df_ok["section_b/B5"].notna() & (df_ok["section_b/B5"] != "")]
+        if len(b5_pop):
+            b5_counts = b5_pop["section_b/B5"].value_counts()
+            b5_df = b5_counts.reset_index()
+            b5_df.columns = ["Service", "n"]
+            b5_df["Service"] = b5_df["Service"].map(b5_labels).fillna("Autre")
+            b5_df["%"] = (b5_df["n"] / b5_df["n"].sum() * 100).round(1)
+            st.dataframe(b5_df, hide_index=True, use_container_width=True)
+            top_service = b5_df.iloc[0]
+            st.markdown(
+                f'<div style="background:#fff7ed;border-left:3px solid #ea580c;border-radius:8px;padding:12px 16px;margin-top:8px;font-size:13px">'
+                f'<strong style="color:#ea580c">{top_service["Service"]}</strong> concentre '
+                f'<strong>{top_service["%"]}%</strong> des démarches — '
+                f'des données d\'identité critiques passent entre les mains de tiers.'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+    st.markdown("---")
+
+    # --- Ce qui se passe concrètement avec les données ---
+    st.markdown(
+        '<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:4px">'
+        'Ce qui se passe concrètement avec les données des citoyens</div>'
+        '<div style="font-size:13px;color:#64748b;margin-bottom:12px">'
+        'Parmi les répondants qui ont entendu parler d\'un abus, voici les types signalés</div>',
+        unsafe_allow_html=True,
+    )
+    c6_pop = df_ok[df_ok["section_c/C6q"].notna() & (df_ok["section_c/C6q"] != "")]
+    if len(c6_pop):
+        c6_labels = {
+            "password": "Quelqu'un a réutilisé le mot de passe",
+            "copy": "Des documents personnels ont été copiés",
+            "unauthorized": "Une démarche a été faite sans l'accord du citoyen",
+        }
+        all_types = []
+        for val in c6_pop["section_c/C6q"]:
+            for t in str(val).split():
+                all_types.append(t)
+        c6_series = pd.Series(all_types)
+        c6_counts = c6_series.value_counts().reset_index()
+        c6_counts.columns = ["Type d'abus", "n"]
+        c6_counts["Type d'abus"] = c6_counts["Type d'abus"].map(c6_labels).fillna("Autre")
+        c6_counts = c6_counts.groupby("Type d'abus", as_index=False)["n"].sum().sort_values("n", ascending=False)
+        c6_counts["% des signalements"] = (c6_counts["n"] / c6_counts["n"].sum() * 100).round(1)
+        st.dataframe(c6_counts, hide_index=True, use_container_width=True)
+    else:
+        st.info("Aucun incident détaillé.")
+
+    st.markdown("---")
+
+    # --- Urbain vs Rural ---
+    st.markdown(
+        '<div style="font-size:15px;font-weight:800;color:#1e293b;margin-bottom:4px">'
+        'Le monde rural est le plus exposé</div>'
+        '<div style="font-size:13px;color:#64748b;margin-bottom:12px">'
+        'Taux d\'intermédiation et de partage de mot de passe selon la zone</div>',
+        unsafe_allow_html=True,
+    )
+    zone_l, zone_r = st.columns(2)
+
+    with zone_l:
+        zone_data = df_ok.copy()
+        zone_data["zone"] = zone_data["metadata_terrain/zone"].fillna("?")
+        zone_data["intermedie"] = used_intermed
+        zone_grp = zone_data.groupby("zone").agg(
+            n=("_id", "count"),
+            intermedies=("intermedie", "sum"),
+        ).reset_index()
+        zone_grp["% qui passent par un tiers"] = (zone_grp["intermedies"] / zone_grp["n"] * 100).round(1)
+        zone_labels = {"urbain": "Urbain", "rural": "Rural"}
+        zone_grp["zone"] = zone_grp["zone"].map(zone_labels).fillna("?")
+        zone_grp.columns = ["Zone", "Répondants", "Médiés", "% qui passent par un tiers"]
+        st.dataframe(zone_grp[["Zone", "Répondants", "Médiés", "% qui passent par un tiers"]], hide_index=True, use_container_width=True)
+
+    with zone_r:
+        zone_data2 = df_ok[used_intermed & is_citizen].copy()
+        zone_data2["zone"] = zone_data2["metadata_terrain/zone"].fillna("?")
+        zone_data2["pwd_shared"] = zone_data2["section_b/B3"] == "yes"
+        zone_pwd = zone_data2.groupby("zone").agg(
+            n=("_id", "count"),
+            partages=("pwd_shared", "sum"),
+        ).reset_index()
+        zone_pwd["% qui donnent leur MDP"] = (zone_pwd["partages"] / zone_pwd["n"] * 100).round(1)
+        zone_pwd["zone"] = zone_pwd["zone"].map({"urbain": "Urbain", "rural": "Rural"}).fillna("?")
+        zone_pwd.columns = ["Zone", "Médiés", "Partage MDP", "% qui donnent leur MDP"]
+        st.dataframe(zone_pwd[["Zone", "Médiés", "Partage MDP", "% qui donnent leur MDP"]], hide_index=True, use_container_width=True)
 
 
 # ── Tab 0 : Profil démographique ───────────────────────────────────────
