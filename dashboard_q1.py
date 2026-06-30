@@ -471,7 +471,7 @@ _mean_conf_int = _c1_int.mean() if len(_c1_int) else 0
 _mean_sec = _c2_cit.mean() if len(_c2_cit) else 0
 _mean_sec_int = _c2_int.mean() if len(_c2_int) else 0
 
-_v1_verdict = f"Score de {_mean_conf:.1f}/5, pourtant {_pct_pwd:.0f}% partagent leur mot de passe"
+_v1_verdict = f"Confiance déclarée, mais {_pct_pwd:.0f}% donnent leur mot de passe à un inconnu"
 _v2_verdict = ("Inquiétude déclarée, mais les pratiques ne changent pas"
                if _mean_sec >= 3 else "Peu d'inquiétude — le risque n'est pas perçu")
 
@@ -532,7 +532,7 @@ with _k1:
                      f"{used_intermed_top.sum()} sur {len(df_ok)}"), unsafe_allow_html=True)
 with _k2:
     st.markdown(_kpi(f"{_pct_pwd:.0f}%", "donnent leur mot de passe",
-                     f"{_b3_yes} sur {len(_b3_pop)} médiés", danger=True), unsafe_allow_html=True)
+                     f"{_b3_yes} sur {len(_b3_pop)} via intermédiaire", danger=True), unsafe_allow_html=True)
 with _k3:
     st.markdown(_kpi(f"{_pct_p3:.0f}%", "document non remis",
                      "transite par l'intermédiaire"), unsafe_allow_html=True)
@@ -611,11 +611,11 @@ with tab_resultats:
         if len(b7_pop):
             b7_counts = b7_pop["section_b/B7"].value_counts()
             b7_df = b7_counts.reset_index()
-            b7_df.columns = ["Raison", "n"]
+            b7_df.columns = ["Raison", "Effectif"]
             b7_df["Raison"] = b7_df["Raison"].map(b7_labels).fillna("?")
-            b7_df["%"] = (b7_df["n"] / b7_df["n"].sum() * 100).round(1)
-            contrainte = b7_df[b7_df["Raison"].isin(["Pas de téléphone / ordinateur", "Ne sait pas utiliser Internet"])]["n"].sum()
-            pct_contrainte = contrainte / b7_df["n"].sum() * 100
+            b7_df["%"] = (b7_df["Effectif"] / b7_df["Effectif"].sum() * 100).round(1)
+            contrainte = b7_df[b7_df["Raison"].isin(["Pas de téléphone / ordinateur", "Ne sait pas utiliser Internet"])]["Effectif"].sum()
+            pct_contrainte = contrainte / b7_df["Effectif"].sum() * 100
             st.dataframe(b7_df, hide_index=True, use_container_width=True)
             if pct_contrainte >= 50:
                 msg_b7 = (
@@ -652,9 +652,9 @@ with tab_resultats:
         if len(b5_pop):
             b5_counts = b5_pop["section_b/B5"].value_counts()
             b5_df = b5_counts.reset_index()
-            b5_df.columns = ["Service", "n"]
+            b5_df.columns = ["Service", "Effectif"]
             b5_df["Service"] = b5_df["Service"].map(b5_labels).fillna("Autre")
-            b5_df["%"] = (b5_df["n"] / b5_df["n"].sum() * 100).round(1)
+            b5_df["%"] = (b5_df["Effectif"] / b5_df["Effectif"].sum() * 100).round(1)
             st.dataframe(b5_df, hide_index=True, use_container_width=True)
             top_service = b5_df.iloc[0]
             st.markdown(
@@ -689,10 +689,10 @@ with tab_resultats:
                 all_types.append(t)
         c6_series = pd.Series(all_types)
         c6_counts = c6_series.value_counts().reset_index()
-        c6_counts.columns = ["Type d'abus", "n"]
+        c6_counts.columns = ["Type d'abus", "Effectif"]
         c6_counts["Type d'abus"] = c6_counts["Type d'abus"].map(c6_labels).fillna("Autre")
-        c6_counts = c6_counts.groupby("Type d'abus", as_index=False)["n"].sum().sort_values("n", ascending=False)
-        c6_counts["% des signalements"] = (c6_counts["n"] / c6_counts["n"].sum() * 100).round(1)
+        c6_counts = c6_counts.groupby("Type d'abus", as_index=False)["Effectif"].sum().sort_values("Effectif", ascending=False)
+        c6_counts["% des signalements"] = (c6_counts["Effectif"] / c6_counts["Effectif"].sum() * 100).round(1)
         st.dataframe(c6_counts, hide_index=True, use_container_width=True)
     else:
         st.info("Aucun incident détaillé.")
@@ -720,8 +720,8 @@ with tab_resultats:
         zone_grp["% qui passent par un tiers"] = (zone_grp["intermedies"] / zone_grp["n"] * 100).round(1)
         zone_labels = {"urbain": "Urbain", "rural": "Rural"}
         zone_grp["zone"] = zone_grp["zone"].map(zone_labels).fillna("?")
-        zone_grp.columns = ["Zone", "Répondants", "Médiés", "% qui passent par un tiers"]
-        st.dataframe(zone_grp[["Zone", "Répondants", "Médiés", "% qui passent par un tiers"]], hide_index=True, use_container_width=True)
+        zone_grp.columns = ["Zone", "Répondants", "Via intermédiaire", "% qui passent par un tiers"]
+        st.dataframe(zone_grp[["Zone", "Répondants", "Via intermédiaire", "% qui passent par un tiers"]], hide_index=True, use_container_width=True)
 
     with zone_r:
         zone_data2 = df_ok[used_intermed & is_citizen].copy()
@@ -733,8 +733,8 @@ with tab_resultats:
         ).reset_index()
         zone_pwd["% qui donnent leur MDP"] = (zone_pwd["partages"] / zone_pwd["n"] * 100).round(1)
         zone_pwd["zone"] = zone_pwd["zone"].map({"urbain": "Urbain", "rural": "Rural"}).fillna("?")
-        zone_pwd.columns = ["Zone", "Médiés", "Partage MDP", "% qui donnent leur MDP"]
-        st.dataframe(zone_pwd[["Zone", "Médiés", "Partage MDP", "% qui donnent leur MDP"]], hide_index=True, use_container_width=True)
+        zone_pwd.columns = ["Zone", "Via intermédiaire", "Partage MDP", "% qui donnent leur MDP"]
+        st.dataframe(zone_pwd[["Zone", "Via intermédiaire", "Partage MDP", "% qui donnent leur MDP"]], hide_index=True, use_container_width=True)
 
 
 # ── Tab 0 : Profil démographique ───────────────────────────────────────
@@ -777,16 +777,16 @@ with tab_demo:
     with d1:
         st.markdown("##### Genre")
         genre_df = df_ok["genre"].value_counts().reset_index()
-        genre_df.columns = ["Genre", "n"]
+        genre_df.columns = ["Genre", "Effectif"]
         genre_df["Genre"] = genre_df["Genre"].map({"M": "Homme", "F": "Femme"}).fillna("?")
-        genre_df["%"] = (genre_df["n"] / n * 100).round(1)
+        genre_df["%"] = (genre_df["Effectif"] / n * 100).round(1)
         st.dataframe(genre_df, hide_index=True, use_container_width=True)
 
     with d2:
         st.markdown("##### Tranche d'age")
         age_df = df_ok["age"].value_counts().reindex(["18-24", "25-34", "35-44", "45-54", "55+"]).reset_index()
-        age_df.columns = ["Tranche", "n"]
-        age_df["%"] = (age_df["n"] / n * 100).round(1)
+        age_df.columns = ["Tranche", "Effectif"]
+        age_df["%"] = (age_df["Effectif"] / n * 100).round(1)
         st.dataframe(age_df, hide_index=True, use_container_width=True)
 
     with d3:
@@ -794,17 +794,17 @@ with tab_demo:
         edu_order = ["none", "primary", "secondary", "university"]
         edu_labels = {"none": "Aucun", "primary": "Primaire", "secondary": "Secondaire", "university": "Universitaire"}
         edu_df = df_ok["education"].value_counts().reindex(edu_order).reset_index()
-        edu_df.columns = ["Niveau", "n"]
+        edu_df.columns = ["Niveau", "Effectif"]
         edu_df["Niveau"] = edu_df["Niveau"].map(edu_labels).fillna("?")
-        edu_df["%"] = (edu_df["n"] / n * 100).round(1)
+        edu_df["%"] = (edu_df["Effectif"] / n * 100).round(1)
         st.dataframe(edu_df, hide_index=True, use_container_width=True)
 
     with d4:
         st.markdown("##### Mode d'administration")
         mode_df = df_ok["mode"].value_counts().reset_index()
-        mode_df.columns = ["Mode", "n"]
+        mode_df.columns = ["Mode", "Effectif"]
         mode_df["Mode"] = mode_df["Mode"].map({"assiste": "Assisté", "auto": "Auto-administré"}).fillna("?")
-        mode_df["%"] = (mode_df["n"] / n * 100).round(1)
+        mode_df["%"] = (mode_df["Effectif"] / n * 100).round(1)
         st.dataframe(mode_df, hide_index=True, use_container_width=True)
 
     st.markdown("---")
@@ -812,17 +812,17 @@ with tab_demo:
     # Per-commune demographic breakdown
     st.markdown("##### Profil par commune")
     commune_demo = df_ok.groupby("commune").agg(
-        n=("_id", "count"),
+        Effectif=("_id", "count"),
         femmes=("genre", lambda x: (x == "F").sum()),
         intermediaires=("role", lambda x: (x == "intermediary").sum()),
         jeunes=("age", lambda x: (x == "18-24").sum()),
         sans_instr=("education", lambda x: (x == "none").sum()),
     ).reset_index()
-    commune_demo.columns = ["Commune", "n", "Femmes", "Interméd.", "18-24", "Sans instr."]
+    commune_demo.columns = ["Commune", "Effectif", "Femmes", "Interméd.", "18-24", "Sans instr."]
     for col in ["Femmes", "Interméd.", "18-24", "Sans instr."]:
-        commune_demo[f"% {col}"] = (commune_demo[col] / commune_demo["n"] * 100).round(0).astype(int)
+        commune_demo[f"% {col}"] = (commune_demo[col] / commune_demo["Effectif"] * 100).round(0).astype(int)
 
-    display_demo = commune_demo[["Commune", "n", "Femmes", "% Femmes", "Interméd.", "% Interméd.", "18-24", "% 18-24", "Sans instr.", "% Sans instr."]].copy()
+    display_demo = commune_demo[["Commune", "Effectif", "Femmes", "% Femmes", "Interméd.", "% Interméd.", "18-24", "% 18-24", "Sans instr.", "% Sans instr."]].copy()
     st.dataframe(display_demo, hide_index=True, use_container_width=True)
 
 
