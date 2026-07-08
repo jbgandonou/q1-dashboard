@@ -470,13 +470,72 @@ def _wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
     return (max(0, centre - margin) * 100, min(1, centre + margin) * 100)
 
 
-def _contingency_html(ct: pd.DataFrame, title: str) -> None:
-    """Affiche un tableau de contingence avec totaux."""
+def _contingency_html(ct: pd.DataFrame, title: str,
+                      row_label: str = "", col_label: str = "") -> None:
+    """Affiche un tableau de contingence avec totaux, stylé en HTML."""
     ct_display = ct.copy()
     ct_display["Total"] = ct_display.sum(axis=1)
     ct_display.loc["Total"] = ct_display.sum(axis=0)
-    st.markdown(f"**{title}** (effectifs observés O)")
-    st.dataframe(ct_display, use_container_width=True)
+    st.markdown(f"**{title}** (effectifs observés)")
+
+    hdr_bg = "#2B5A8E"
+    hdr_fg = "#fff"
+    total_bg = "#e8f4f8"
+    alt_bg = "#f8fafc"
+    border = "#d1d5db"
+    corner_bg = "#1e3a5f"
+    row_hdr_bg = "#e2e8f0"
+
+    cols = list(ct_display.columns)
+    n_cols = len(cols) + 1
+
+    html = (
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;'
+        f'border:1px solid {border};margin-bottom:12px">'
+    )
+    if col_label:
+        html += (
+            f'<thead><tr><th colspan="{n_cols}" style="background:{hdr_bg};'
+            f'color:{hdr_fg};padding:6px 12px;text-align:center;'
+            f'border:1px solid {border};font-weight:600;font-size:12px;'
+            f'letter-spacing:1px">{col_label} \u2192</th></tr>'
+        )
+    html += "<tr>"
+    corner = f"{row_label} \u2193" if row_label else ""
+    html += (
+        f'<th style="background:{corner_bg};color:{hdr_fg};padding:8px 12px;'
+        f'text-align:left;border:1px solid {border};font-weight:600;'
+        f'font-size:11px">{corner}</th>'
+    )
+    for c in cols:
+        is_total = c == "Total"
+        html += (
+            f'<th style="background:{hdr_bg};color:{hdr_fg};padding:8px 12px;'
+            f'text-align:center;border:1px solid {border};'
+            f'font-weight:{"700" if is_total else "600"}">{c}</th>'
+        )
+    html += "</tr></thead><tbody>"
+    for i, (idx, row) in enumerate(ct_display.iterrows()):
+        is_total_row = idx == "Total"
+        bg = total_bg if is_total_row else (alt_bg if i % 2 == 1 else "#fff")
+        fw = "700" if is_total_row else "400"
+        html += "<tr>"
+        lbl_bg = total_bg if is_total_row else row_hdr_bg
+        html += (
+            f'<td style="background:{lbl_bg};padding:7px 12px;border:1px solid {border};'
+            f'font-weight:600;color:#1e293b">{idx}</td>'
+        )
+        for c in cols:
+            is_total_col = c == "Total" or is_total_row
+            html += (
+                f'<td style="background:{bg};padding:7px 12px;text-align:right;'
+                f'border:1px solid {border};font-weight:{fw};'
+                f'color:{"#2B5A8E" if is_total_col else "#374151"}">'
+                f'{int(row[c])}</td>'
+            )
+        html += "</tr>"
+    html += "</tbody></table>"
+    st.markdown(html, unsafe_allow_html=True)
 
 
 def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None,
@@ -859,7 +918,8 @@ def _render_lemmes():
             _l1a_mask = _l1a_a7.notna() & _l1a_b2.notna()
             st.caption(f"Population : citoyens avec A7 et B2 renseignés (n = {_l1a_mask.sum()})")
             ct1 = pd.crosstab(_l1a_a7[_l1a_mask], _l1a_b2[_l1a_mask])
-            _contingency_html(ct1, "Littératie numérique × Opérateur du terminal")
+            _contingency_html(ct1, "Littératie numérique × Opérateur du terminal",
+                              row_label="Littératie numérique", col_label="Qui opère le terminal")
             _chi2_full(ct1, p_collector=l1_pvals,
                        var_row="la littératie numérique (A7)", var_col="le recours à l'intermédiation (B2)")
             l1_labels.append("χ² A7 × B2")
@@ -871,7 +931,8 @@ def _render_lemmes():
             _l1b_mask = _l1b_a5.notna() & _l1b_b2.notna()
             st.caption(f"Population : citoyens avec A5 et B2 renseignés (n = {_l1b_mask.sum()})")
             ct2 = pd.crosstab(_l1b_a5[_l1b_mask], _l1b_b2[_l1b_mask])
-            _contingency_html(ct2, "Type de téléphone × Opérateur du terminal")
+            _contingency_html(ct2, "Type de téléphone × Opérateur du terminal",
+                              row_label="Type de téléphone", col_label="Qui opère le terminal")
             _chi2_full(ct2, p_collector=l1_pvals,
                        var_row="le type de téléphone (A5)", var_col="le recours à l'intermédiation (B2)")
             l1_labels.append("χ² A5 × B2")
@@ -1157,7 +1218,8 @@ def _render_lemmes():
                 _l2_b3 = _intermedies["section_b/B3"].map(b3_map)
                 _l2_mask = _l2_b6.notna() & _l2_b3.notna()
                 ct3 = pd.crosstab(_l2_b6[_l2_mask], _l2_b3[_l2_mask])
-                _contingency_html(ct3, "Présence physique × Partage de mot de passe")
+                _contingency_html(ct3, "Présence physique × Partage de mot de passe",
+                                  row_label="Présence du citoyen", col_label="Partage du mot de passe")
                 _chi2_full(ct3, p_collector=l2_pvals,
                            var_row="la présence physique (B6)", var_col="le partage de mot de passe (B3)")
                 l2_labels.append("χ² B3 × B6")
@@ -1236,7 +1298,8 @@ def _render_lemmes():
                 _l2b_b3 = _intermedies["section_b/B3"].map(b3_map)
                 _l2b_mask = _l2b_a7.notna() & _l2b_b3.notna()
                 ct4 = pd.crosstab(_l2b_a7[_l2b_mask], _l2b_b3[_l2b_mask])
-                _contingency_html(ct4, "Littératie × Partage MDP")
+                _contingency_html(ct4, "Littératie × Partage MDP",
+                                  row_label="Littératie numérique", col_label="Partage du mot de passe")
                 _chi2_full(ct4, p_collector=l2_pvals,
                            var_row="la littératie numérique (A7)", var_col="le partage de mot de passe (B3)")
                 l2_labels.append("χ² B3 × A7")
@@ -1305,7 +1368,8 @@ def _render_lemmes():
                 _l3a_mask = b3_bin.notna() & c5_bin.notna()
                 b3_bin, c5_bin = b3_bin[_l3a_mask], c5_bin[_l3a_mask]
                 ct5 = pd.crosstab(b3_bin, c5_bin)
-                _contingency_html(ct5, "Partage MDP × Connaissance d'incidents")
+                _contingency_html(ct5, "Partage MDP × Connaissance d'incidents",
+                                  row_label="Partage du mot de passe", col_label="Connaissance d'incidents")
                 _chi2_full(ct5, p_collector=l3_pvals,
                            var_row="le partage de MDP (B3)", var_col="la connaissance d'incidents (C5q)")
                 l3_labels.append("χ² B3 × C5q")
@@ -1318,7 +1382,8 @@ def _render_lemmes():
                 _l3b_b9 = _intermedies["section_b/B9"].map(b9_map)
                 _l3b_mask = _l3b_b3.notna() & _l3b_b9.notna()
                 ct6 = pd.crosstab(_l3b_b3[_l3b_mask], _l3b_b9[_l3b_mask])
-                _contingency_html(ct6, "Partage MDP × Accès multi-services")
+                _contingency_html(ct6, "Partage MDP × Accès multi-services",
+                                  row_label="Partage du mot de passe", col_label="Accès multi-services")
                 _chi2_full(ct6, p_collector=l3_pvals,
                            var_row="le partage de MDP (B3)", var_col="l'accès multi-services (B9)")
                 l3_labels.append("χ² B3 × B9")
@@ -1520,7 +1585,8 @@ def _render_lemmes():
                 _l5a_b4 = _intermedies["section_b/B4"].map(b4_map)
                 _l5a_mask = _l5a_b6.notna() & _l5a_b4.notna()
                 ct7 = pd.crosstab(_l5a_b6[_l5a_mask], _l5a_b4[_l5a_mask])
-                _contingency_html(ct7, "Présence × Destinataire du document")
+                _contingency_html(ct7, "Présence × Destinataire du document",
+                                  row_label="Présence du citoyen", col_label="Qui reçoit le document")
                 _chi2_full(ct7, p_collector=l5_pvals,
                            var_row="la présence physique (B6)", var_col="le destinataire du document (B4)")
                 l5_labels.append("χ² B4 × B6")
@@ -1570,7 +1636,8 @@ def _render_lemmes():
                 _l5b_b4 = _intermedies["section_b/B4"].map(b4_map)
                 _l5b_mask = _l5b_a7.notna() & _l5b_b4.notna()
                 ct8 = pd.crosstab(_l5b_a7[_l5b_mask], _l5b_b4[_l5b_mask])
-                _contingency_html(ct8, "Littératie × Destinataire du document")
+                _contingency_html(ct8, "Littératie × Destinataire du document",
+                                  row_label="Littératie numérique", col_label="Qui reçoit le document")
                 _chi2_full(ct8, p_collector=l5_pvals,
                            var_row="la littératie numérique (A7)", var_col="le destinataire du document (B4)")
                 l5_labels.append("χ² B4 × A7")
