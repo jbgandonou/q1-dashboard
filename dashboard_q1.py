@@ -548,6 +548,27 @@ def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None) -> None:
         p < 0.05,
     )
 
+    # Conclusion interprétative
+    if p < 0.05:
+        if cramer_v >= 0.3:
+            concl = (f"L'association est statistiquement significative <strong>et</strong> substantielle "
+                     f"(V = {cramer_v:.3f}). Ce résultat est robuste : il ne dépend pas de la taille de l'échantillon.")
+        elif cramer_v >= 0.1:
+            concl = (f"L'association est significative mais d'ampleur modeste (V = {cramer_v:.3f}). "
+                     f"L'effet existe mais reste modéré — il ne suffit pas à lui seul à expliquer le phénomène.")
+        else:
+            concl = (f"L'association est significative mais <strong>négligeable</strong> en pratique "
+                     f"(V = {cramer_v:.3f}). La significativité est probablement un artefact de la taille "
+                     f"de l'échantillon (n = {n}). Ce résultat ne devrait pas être utilisé dans l'argumentation.")
+    else:
+        concl = ("Pas d'association significative. Les deux variables sont indépendantes dans cet échantillon.")
+    st.markdown(
+        f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+        f'padding:10px 14px;margin:4px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+        f'<strong>↳ Conclusion :</strong> {concl}</div>',
+        unsafe_allow_html=True,
+    )
+
 
 def _fisher_result(ct: pd.DataFrame) -> str:
     """Test exact de Fisher pour tableau 2x2."""
@@ -621,6 +642,27 @@ def _fdr_correction_box(p_values: list, labels: list) -> None:
             '</div>', unsafe_allow_html=True,
         )
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
+        # Conclusion FDR
+        n_surv_bh = sum(1 for pv in bh_pvals if pv < 0.05)
+        n_surv_bonf = sum(1 for b in bonf if b < 0.05)
+        if n_surv_bh == k:
+            fdr_concl = (f"Les {k} tests restent significatifs après correction BH. "
+                         f"Aucun faux positif probable : tous les résultats de ce lemme sont robustes.")
+        elif n_surv_bh == 0:
+            fdr_concl = (f"Aucun test ne survit à la correction BH. Les résultats significatifs "
+                         f"de ce lemme sont probablement des faux positifs liés à la multiplicité des tests.")
+        else:
+            lost = [labels[i] for i in range(k) if bh_pvals[i] >= 0.05]
+            fdr_concl = (f"{n_surv_bh}/{k} tests survivent à la correction BH. "
+                         f"Test(s) perdant la significativité : {', '.join(lost)}. "
+                         f"Ces résultats ne devraient pas être cités comme significatifs dans le papier.")
+        st.markdown(
+            f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+            f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+            f'<strong>↳ Conclusion :</strong> {fdr_concl}</div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _method_box(text: str) -> None:
@@ -712,6 +754,32 @@ def _render_lemmes():
                     f"Taille effective : n_eff = {n_total_w} / {deff:.3f} = {n_eff:.0f} "
                     f"(perte de {(1 - n_eff / n_total_w) * 100:.0f}% de précision due à la pondération).",
                     deff > 2.0,
+                )
+
+                # Conclusion pondération
+                loss_pct = (1 - n_eff / n_total_w) * 100
+                if deff < 1.2:
+                    pond_concl = (f"L'échantillon est bien équilibré (DEFF = {deff:.3f}, perte < {loss_pct:.0f}%). "
+                                  f"Les résultats non pondérés sont fiables tels quels : "
+                                  f"la pondération ne changerait pas substantiellement les proportions.")
+                elif deff < 1.5:
+                    pond_concl = (f"Déséquilibre léger (DEFF = {deff:.3f}, perte = {loss_pct:.0f}%). "
+                                  f"La pondération corrigerait marginalement les proportions globales. "
+                                  f"Les conclusions qualitatives restent valides sans pondération.")
+                elif deff < 2.0:
+                    pond_concl = (f"Déséquilibre modéré (DEFF = {deff:.3f}, perte = {loss_pct:.0f}%). "
+                                  f"Les proportions globales (taux d'intermédiation, partage MDP) "
+                                  f"devraient être rapportées avec et sans pondération dans le papier.")
+                else:
+                    pond_concl = (f"Déséquilibre important (DEFF = {deff:.3f}, perte = {loss_pct:.0f}%). "
+                                  f"La pondération dégrade trop la précision. Il vaut mieux stratifier "
+                                  f"les analyses (rapporter les résultats séparément par strate urbain/rural) "
+                                  f"plutôt que pondérer.")
+                st.markdown(
+                    f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+                    f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+                    f'<strong>↳ Conclusion :</strong> {pond_concl}</div>',
+                    unsafe_allow_html=True,
                 )
 
     # Rappel des items du questionnaire utilisés dans les lemmes
@@ -895,6 +963,44 @@ def _render_lemmes():
                 '</div>', unsafe_allow_html=True,
             )
 
+            # Conclusion régression
+            sig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "")
+                         for i, col in enumerate(dummies.columns)
+                         if col != "const" and model.pvalues[i] < 0.05]
+            nonsig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "")
+                            for i, col in enumerate(dummies.columns)
+                            if col != "const" and model.pvalues[i] >= 0.05]
+
+            if sig_preds:
+                reg_concl = (f"<strong>Prédicteurs significatifs (effets nets) :</strong> {', '.join(sig_preds)}. "
+                             f"Ces facteurs influencent le recours à l'intermédiation indépendamment les uns des autres.")
+            else:
+                reg_concl = ("Aucun prédicteur n'est individuellement significatif après ajustement. "
+                             "Les associations bivariées (chi-deux) étaient dues à la colinéarité entre les facteurs.")
+            if nonsig_preds:
+                reg_concl += (f"<br><strong>Prédicteurs non significatifs après ajustement :</strong> "
+                              f"{', '.join(nonsig_preds)}. Leur effet apparent en chi-deux bivarié "
+                              f"était confondu avec un autre facteur du modèle.")
+
+            if model.prsquared < 0.1:
+                reg_concl += ("<br><strong>Pouvoir explicatif limité</strong> (Pseudo-R² < 0.10) : "
+                              "les variables mesurées n'expliquent qu'une faible part de la variance. "
+                              "D'autres facteurs non mesurés (revenus, proximité géographique, réseau social) "
+                              "jouent probablement un rôle important.")
+            elif model.prsquared < 0.25:
+                reg_concl += (f"<br><strong>Pouvoir explicatif modéré</strong> (Pseudo-R² = {model.prsquared:.3f}) : "
+                              f"le modèle capture une part significative de la variance, "
+                              f"ce qui est courant en sciences sociales.")
+            else:
+                reg_concl += (f"<br><strong>Bon pouvoir explicatif</strong> (Pseudo-R² = {model.prsquared:.3f}).")
+
+            st.markdown(
+                f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+                f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+                f'<strong>↳ Conclusion :</strong> {reg_concl}</div>',
+                unsafe_allow_html=True,
+            )
+
             for i, col in enumerate(dummies.columns):
                 if col != "const" and model.pvalues[i] < 0.05:
                     l1_pvals.append(model.pvalues[i])
@@ -1018,6 +1124,26 @@ def _render_lemmes():
                 ],
             })
             st.dataframe(conv_df, hide_index=True, use_container_width=True)
+
+            # Conclusion convergence avec IC
+            if cit_total and int_total:
+                overlap = cit_ci[0] <= int_ci[1] and int_ci[0] <= cit_ci[1]
+                if overlap:
+                    conv_concl = (f"Les IC des deux sources se chevauchent "
+                                  f"([{cit_ci[0]:.0f}-{cit_ci[1]:.0f}%] vs [{int_ci[0]:.0f}-{int_ci[1]:.0f}%]). "
+                                  f"La triangulation confirme la cohérence : citoyens et intermédiaires "
+                                  f"rapportent des taux de partage compatibles, ce qui renforce la crédibilité de la mesure.")
+                else:
+                    conv_concl = (f"Les IC ne se chevauchent pas "
+                                  f"([{cit_ci[0]:.0f}-{cit_ci[1]:.0f}%] vs [{int_ci[0]:.0f}-{int_ci[1]:.0f}%]). "
+                                  f"Les deux sources divergent significativement — un biais de déclaration "
+                                  f"affecte au moins l'un des deux groupes.")
+                st.markdown(
+                    f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+                    f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+                    f'<strong>↳ Conclusion IC :</strong> {conv_concl}</div>',
+                    unsafe_allow_html=True,
+                )
 
             st.markdown("##### B3 (partage MDP) × A7 (littératie)")
             st.caption("Les plus compétents partagent-ils moins ?")
@@ -1317,11 +1443,34 @@ def _render_lemmes():
                     'Formule : taux = nb(B4 ∈ {handed, kept, unknown}) / nb(répondants dans ce niveau de B6) × 100'
                     '</div>', unsafe_allow_html=True,
                 )
+                livraison_rates = {}
                 for pres, label in b6_map.items():
                     sub = _intermedies[_intermedies["section_b/B6"] == pres]
                     if len(sub):
                         num = sub["section_b/B4"].isin(["handed", "kept", "unknown"]).sum()
                         st.markdown(f"- {label} : {_pct_detail(num, len(sub), 'via I')}")
+                        livraison_rates[label] = (num, len(sub))
+
+                if livraison_rates:
+                    rates_pct = {k: v[0] / v[1] * 100 for k, v in livraison_rates.items()}
+                    max_label = max(rates_pct, key=rates_pct.get)
+                    min_label = min(rates_pct, key=rates_pct.get)
+                    spread = rates_pct[max_label] - rates_pct[min_label]
+                    if spread < 15:
+                        l5_liv_concl = (f"L'écart entre les niveaux de présence est faible ({spread:.0f} points). "
+                                        f"La présence physique ne corrige pas la livraison via I : "
+                                        f"même présent, le citoyen ne récupère pas le document directement. "
+                                        f"Cela confirme empiriquement le lemme (P3 violée quel que soit le mécanisme correctif).")
+                    else:
+                        l5_liv_concl = (f"L'écart est notable ({spread:.0f} points entre {min_label} et {max_label}). "
+                                        f"La présence réduit partiellement la livraison via I, "
+                                        f"mais le taux reste élevé même au minimum ({rates_pct[min_label]:.0f}%).")
+                    st.markdown(
+                        f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+                        f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+                        f'<strong>↳ Conclusion :</strong> {l5_liv_concl}</div>',
+                        unsafe_allow_html=True,
+                    )
 
         with l5_b:
             st.markdown("##### B4 (destinataire) × A7 (littératie)")
@@ -1360,6 +1509,27 @@ def _render_lemmes():
                 )
                 l5_pvals.append(p_val)
                 l5_labels.append("Mann-Whitney C4q")
+
+                # Conclusion Mann-Whitney
+                if p_val < 0.05:
+                    if c4_cit.median() > c4_int.median():
+                        mw_concl = (f"Les citoyens intermédiés attendent davantage la livraison exclusive "
+                                    f"(médiane {c4_cit.median():.0f}) que les intermédiaires (médiane {c4_int.median():.0f}). "
+                                    f"Il existe un décalage de perception : ceux qui subissent la violation de P3 "
+                                    f"la ressentent plus fortement que ceux qui la produisent.")
+                    else:
+                        mw_concl = (f"Les intermédiaires expriment une attente de livraison exclusive "
+                                    f"au moins aussi forte que les citoyens. Les deux groupes reconnaissent "
+                                    f"le problème mais leurs distributions diffèrent significativement.")
+                else:
+                    mw_concl = ("Pas de différence significative entre citoyens et intermédiaires "
+                                "sur l'attente de livraison exclusive. Les deux groupes partagent la même perception.")
+                st.markdown(
+                    f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
+                    f'padding:10px 14px;margin:8px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
+                    f'<strong>↳ Conclusion :</strong> {mw_concl}</div>',
+                    unsafe_allow_html=True,
+                )
 
         st.markdown("---")
         st.markdown("##### B4 par commune — le gradient territorial")
