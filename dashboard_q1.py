@@ -516,7 +516,11 @@ def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None) -> None:
             f'<strong>N</strong> = {n} · <strong>ddl</strong> = (nb lignes − 1) × (nb colonnes − 1) '
             f'= ({ct.shape[0]} − 1) × ({ct.shape[1]} − 1) = {dof}<br>'
             f'<strong>V de Cramér :</strong> V = √(χ² / (N × (min(r,c) − 1))) = '
-            f'√({chi2:.2f} / ({n} × {k - 1})) = {cramer_v:.3f} ({v_interp})'
+            f'√({chi2:.2f} / ({n} × {k - 1})) = {cramer_v:.3f} ({v_interp})<br>'
+            '<strong>Pourquoi le V ?</strong> Le chi-deux dépend de N : avec 773 répondants, même une '
+            'association négligeable peut donner p < 0.001. Le V normalise entre 0 et 1 et mesure la '
+            '<em>force</em> de l\'association, pas seulement son existence statistique. '
+            'Un reviewer s\'attendrait à ce qu\'on distingue significativité statistique et pertinence pratique.'
             '</div>', unsafe_allow_html=True,
         )
         st.markdown("**Fréquences attendues E** (sous H0 : indépendance)")
@@ -603,10 +607,17 @@ def _fdr_correction_box(p_values: list, labels: list) -> None:
         st.markdown(
             '<div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:8px;'
             'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#581c87;line-height:1.6">'
-            f'<strong>{k} tests</strong> réalisés dans ce lemme. '
-            f'Risque cumulé sans correction : 1 − (1 − 0.05)<sup>{k}</sup> = {1 - (1 - 0.05)**k:.1%}.<br>'
-            '<strong>Bonferroni</strong> : p<sub>corr</sub> = p × k (conservateur, contrôle FWER).<br>'
-            '<strong>Benjamini-Hochberg</strong> : contrôle le FDR à 5% (moins conservateur, recommandé).'
+            f'<strong>Pourquoi corriger ?</strong> Chaque test à α = 0.05 a 5% de chances de conclure '
+            'à tort. Avec <strong>{k} tests</strong> dans ce lemme, le risque cumulé de trouver au moins '
+            f'un faux positif monte à 1 − (1 − 0.05)<sup>{k}</sup> = {1 - (1 - 0.05)**k:.1%}. '
+            'Sans correction, un résultat sur cinq pourrait être un artefact statistique. '
+            'Si un résultat perd sa significativité après correction, il ne devrait pas figurer '
+            'dans l\'argumentaire du papier.<br><br>'
+            '<strong>Bonferroni</strong> : p<sub>corr</sub> = p × k (conservateur, contrôle FWER — '
+            'probabilité de faire au moins une erreur).<br>'
+            '<strong>Benjamini-Hochberg</strong> : contrôle le FDR à 5% (proportion attendue de faux positifs '
+            'parmi les résultats déclarés significatifs — moins conservateur, recommandé quand les tests '
+            'portent sur des hypothèses liées).'
             '</div>', unsafe_allow_html=True,
         )
         st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
@@ -654,8 +665,13 @@ def _render_lemmes():
         st.markdown(
             '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;'
             'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#0c4a6e;line-height:1.6">'
-            '<strong>Principe :</strong> l\'échantillon n\'est pas auto-pondéré. Certaines strates '
-            '(urbain/rural) sont sur- ou sous-représentées par rapport à la population réelle (RGPH-4).<br>'
+            '<strong>Pourquoi pondérer ?</strong> L\'échantillon a été conçu par quotas par '
+            'commune/arrondissement, mais la répartition urbain/rural obtenue ne correspond pas '
+            'exactement à la population réelle de l\'Ouémé (RGPH-4, INSAE 2013). Si 70% de '
+            'l\'échantillon est urbain mais que l\'Ouémé est 62% urbain, les proportions globales '
+            '(taux de partage MDP, taux d\'intermédiation) sont biaisées vers le comportement urbain. '
+            'La pondération corrige ce déséquilibre. Si le DEFF est faible (< 1.5), cela confirme que '
+            'l\'échantillon est raisonnablement équilibré et que les résultats non pondérés sont fiables.<br><br>'
             '<strong>Formule :</strong> w<sub>s</sub> = (proportion RGPH-4 de la strate s) / '
             '(proportion observée de la strate s dans l\'échantillon).<br>'
             'Un poids > 1 signifie que la strate est sous-représentée (chaque répondant « compte » '
@@ -796,6 +812,16 @@ def _render_lemmes():
         # Motif de recours B7 avec IC Wilson
         st.markdown("##### B7 — Motif du recours (citoyens intermédiés)")
         b7_map = {"convenience": "Commodité", "no_device": "Pas de terminal", "no_skill": "Manque de compétence", "other": "Autre"}
+        st.markdown(
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+            'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+            '<strong>Pourquoi les IC de Wilson ?</strong> Un pourcentage brut (ex: 73%) masque '
+            'l\'incertitude. Avec n = 30, un taux de 73% pourrait en réalité être entre 55% et 87%. '
+            'Avec n = 400, l\'intervalle se resserre à [69%-77%]. L\'IC de Wilson (préféré à Wald '
+            'pour les proportions proches de 0 ou 1, et pour les petits n) permet de distinguer les '
+            'chiffres robustes de ceux qui sont instables.'
+            '</div>', unsafe_allow_html=True,
+        )
         if len(_intermedies):
             b7_df = _intermedies["section_b/B7"].map(b7_map).fillna("?").value_counts().reset_index()
             b7_df.columns = ["Motif", "Effectif"]
@@ -809,14 +835,21 @@ def _render_lemmes():
         st.markdown("---")
         st.markdown("##### Régression logistique — effets nets sur le recours à l'intermédiation")
         _method_box(
-            '<strong>Objectif :</strong> isoler l\'effet net de chaque prédicteur sur la probabilité '
-            'd\'être intermédiée (B2 ≠ soi-même), en contrôlant les confondeurs.<br>'
+            '<strong>Pourquoi cette régression ?</strong> Les deux chi-deux ci-dessus (A7 × B2 et A5 × B2) '
+            'sont probablement tous les deux significatifs. Mais A5 et A7 sont corrélés entre eux : '
+            'ceux sans smartphone ont souvent une faible littératie. Impossible de savoir si les deux '
+            'facteurs comptent ou si c\'est le même effet compté deux fois. La régression logistique '
+            'répond : « à littératie égale, l\'absence de smartphone augmente-t-elle encore le recours ? » '
+            'C\'est la seule façon d\'isoler les effets nets et de passer d\'une analyse bivariée '
+            '(association) à une analyse multivariée (effets indépendants).<br><br>'
             '<strong>Variable dépendante :</strong> B2 binaire (0 = soi-même, 1 = intermédiaire ou proche).<br>'
             '<strong>Prédicteurs :</strong> A5 (terminal), A7 (littératie), A2 (âge), A6 (éducation), '
             'zone (urbain/rural). Chaque variable catégorielle est encodée en dummies, la modalité '
             'de référence est la plus fréquente.<br>'
             '<strong>Interprétation :</strong> un OR > 1 signifie que la modalité augmente les chances '
-            'd\'être intermédiée par rapport à la référence. L\'IC à 95% exclut 1 → effet significatif.'
+            'd\'être intermédiée par rapport à la référence. L\'IC à 95% exclut 1 → effet significatif. '
+            'Si un prédicteur significatif en chi-deux perd sa significativité ici, son effet apparent '
+            'était dû à sa corrélation avec un autre facteur.'
         )
 
         try:
