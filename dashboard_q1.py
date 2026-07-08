@@ -1174,6 +1174,37 @@ BDD_LABELS = {
     "flagged": "Statut",
 }
 
+BDD_VALUES = {
+    "consentement": {"yes": "Oui", "no": "Non"},
+    "metadata_terrain/zone": {"urbain": "Urbain", "rural": "Rural"},
+    "metadata_terrain/strate": {
+        "urbain_connectee": "Urbain connecté", "urbain_degradee": "Urbain dégradé",
+        "rural_connectee": "Rural connecté", "rural_degradee": "Rural dégradé",
+    },
+    "metadata_terrain/connectivite": {"connectee": "Connectée", "degradee": "Dégradée"},
+    "metadata_terrain/mode_administration": {"assiste": "Assisté", "auto": "Auto-administré"},
+    "section_a/A1": {"citizen": "Citoyen", "intermediary": "Intermédiaire"},
+    "section_a/A3": {"M": "Homme", "F": "Femme"},
+    "section_a/A5": {"smartphone": "Smartphone", "basic": "Téléphone basique", "none": "Aucun téléphone"},
+    "section_a/A6": {"none": "Sans instruction", "primary": "Primaire", "secondary": "Secondaire", "university": "Universitaire"},
+    "section_a/A7": {"yes_easy": "Oui, facilement", "yes_hard": "Oui, avec difficulté", "no": "Non"},
+    "section_b/B1": {"never": "Jamais", "1-2": "1 à 2 fois", "3-5": "3 à 5 fois", "5+": "Plus de 5 fois"},
+    "section_b/B2": {"self": "Moi-même", "intermediary": "Un intermédiaire", "relative": "Un proche"},
+    "section_b/B3": {"yes": "Oui", "no": "Non", "no_password": "Pas de mot de passe"},
+    "section_b/B3_int": {"yes": "Oui", "no": "Non", "no_password": "Pas de mot de passe"},
+    "section_b/B4": {"me": "Moi directement", "handed": "Remis par l'intermédiaire", "kept": "Gardé par l'intermédiaire", "unknown": "Ne sait pas"},
+    "section_b/B4_int": {"me": "Directement au citoyen", "handed": "Remis au citoyen", "kept": "Conservé"},
+    "section_b/B5": {"ravip": "RAVIP", "birth": "Acte de naissance", "criminal": "Casier judiciaire", "nationality": "Certificat de nationalité", "other": "Autre"},
+    "section_b/B6": {"yes_all": "Oui, tout le temps", "yes_partial": "Oui, partiellement", "no": "Non"},
+    "section_b/B6_int": {"yes_all": "Oui, tout le temps", "yes_partial": "Oui, partiellement", "no": "Non"},
+    "section_b/B7": {"convenience": "Commodité", "no_device": "Pas de terminal", "no_skill": "Manque de compétence", "other": "Autre"},
+    "section_b/B8": {"no": "Non", "yes_completed": "Oui, démarche terminée", "yes_interrupted": "Oui, démarche interrompue"},
+    "section_b/B9": {"one": "Un seul service", "multiple": "Plusieurs services", "unknown": "Ne sait pas"},
+    "section_b/B9_int": {"one": "Un seul service", "multiple": "Plusieurs services", "unknown": "Ne sait pas"},
+    "section_c/C5q": {"yes": "Oui", "no": "Non"},
+    "section_c/C6q": {"copy": "Copie de documents", "password": "Réutilisation mot de passe", "unauthorized": "Démarche non autorisée", "other": "Autre"},
+}
+
 # Colonnes calculées par clean() qui dupliquent les colonnes brutes
 BDD_INTERNAL_COLS.update({
     "commune", "arrondissement", "enqueteur", "role", "genre",
@@ -1209,6 +1240,16 @@ with tab_bdd:
         bdd_export["duration_min"] = bdd_export["duration_min"].round(1)
     if "flagged" in bdd_export.columns:
         bdd_export["flagged"] = bdd_export["flagged"].map({True: "Exclue", False: "OK"})
+
+    for col, mapping in BDD_VALUES.items():
+        if col not in bdd_export.columns:
+            continue
+        if col == "section_c/C6q":
+            bdd_export[col] = bdd_export[col].apply(
+                lambda v: ", ".join(mapping.get(t, t) for t in str(v).split()) if pd.notna(v) and v != "" else v
+            )
+        else:
+            bdd_export[col] = bdd_export[col].map(mapping).fillna(bdd_export[col])
 
     rename_map = {c: BDD_LABELS.get(c, c) for c in bdd_export.columns}
     bdd_display = bdd_export.rename(columns=rename_map)
