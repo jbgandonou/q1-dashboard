@@ -449,12 +449,9 @@ st.markdown(
 )
 
 
-# ── Tabs ────────────────────────────────────────────────────────────────
+# ── Navigation ──────────────────────────────────────────────────────────
 
-tab_lemmes, tab_bdd = st.tabs([
-    "Lemmes",
-    "Base de données",
-])
+page = st.radio("", ["Lemmes", "Base de données"], horizontal=True, label_visibility="collapsed")
 
 
 # ── Tab Lemmes ────────────────────────────────────────────────────────
@@ -517,7 +514,6 @@ def _bias_box(text: str) -> None:
     )
 
 
-@st.fragment
 def _render_lemmes():
     lemme_choice = st.selectbox("Sélectionner un lemme", [
         "L1 — Observabilité du terminal (C1∧C3 → I contrôle T)",
@@ -1037,13 +1033,12 @@ def _render_lemmes():
         )
 
 
-with tab_lemmes:
+if page == "Lemmes":
     _render_lemmes()
 
 
-# ── Tab Base de données ──────────────────────────────────────────────
+# ── Base de données ──────────────────────────────────────────────────
 
-@st.fragment
 def _render_bdd():
     BDD_INTERNAL_COLS = {
         "__version__", "_attachments", "_geolocation", "_xform_id_string",
@@ -1195,5 +1190,5 @@ def _render_bdd():
     )
 
 
-with tab_bdd:
+if page == "Base de données":
     _render_bdd()
