@@ -499,6 +499,24 @@ def _stat_box(text: str, significant: bool) -> None:
     )
 
 
+def _method_box(text: str) -> None:
+    st.markdown(
+        f'<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;'
+        f'padding:14px 18px;margin:12px 0;font-size:12px;color:#475569;line-height:1.6">'
+        f'{text}</div>',
+        unsafe_allow_html=True,
+    )
+
+
+def _bias_box(text: str) -> None:
+    st.markdown(
+        f'<div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;'
+        f'padding:14px 18px;margin:12px 0;font-size:12px;color:#92400e;line-height:1.6">'
+        f'<strong>Biais et limites</strong><br>{text}</div>',
+        unsafe_allow_html=True,
+    )
+
+
 with tab_lemmes:
     lemme_choice = st.selectbox("Sélectionner un lemme", [
         "L1 — Observabilité du terminal (C1∧C3 → I contrôle T)",
@@ -522,8 +540,24 @@ with tab_lemmes:
             '<strong>Énoncé :</strong> Sous C1∧C3, l\'intermédiaire I observe l\'intégralité '
             'des interactions sur le terminal de session.<br>'
             '<strong>Ce qu\'on cherche :</strong> montrer que C1 (absence de terminal / compétence) '
-            'et C3 (intermédiation) existent massivement et sont corrélés.'
+            'et C3 (intermédiation) existent massivement et sont corrélés.<br>'
+            '<strong>Statut épistémologique :</strong> le lemme est un résultat déductif (si C1∧C3 alors observabilité). '
+            'L\'enquête ne le prouve pas : elle vérifie que ses prémisses (C1 et C3) existent sur le terrain.'
             '</div>', unsafe_allow_html=True,
+        )
+
+        _method_box(
+            '<strong>Méthode</strong><br>'
+            'Deux tableaux de contingence croisent la variable dépendante B2 (qui a opéré le terminal : '
+            'soi-même / intermédiaire / proche) avec deux opérationnalisations de C1 : '
+            'A7 (littératie numérique, 3 niveaux) et A5 (type de téléphone, 3 niveaux).<br><br>'
+            '<strong>Test appliqué :</strong> chi-deux de Pearson. Approprié car les deux variables sont '
+            'catégorielles nominales avec effectifs attendus suffisants (> 5 par cellule dans la majorité des cas). '
+            'Le chi-deux mesure l\'association, pas la causalité.<br><br>'
+            '<strong>Population :</strong> citoyens uniquement (n ci-dessous). Les intermédiaires sont exclus '
+            'car B2 n\'a de sens que pour quelqu\'un qui effectue une démarche en tant que bénéficiaire.<br><br>'
+            '<strong>Hypothèse H0 :</strong> A7 (resp. A5) et B2 sont indépendants. '
+            'Un p < 0.05 rejette H0 : la littératie (resp. le type de terminal) est associée au mode d\'opération.'
         )
 
         l1_a, l1_b = st.columns(2)
@@ -551,8 +585,9 @@ with tab_lemmes:
         st.markdown("---")
         st.markdown("##### Comparaison des deux facettes de C1")
         st.markdown(
-            "Si le chi2 **littératie × recours** est supérieur au chi2 **terminal × recours**, "
-            "C1 se manifeste principalement comme un déficit de **compétence** plutôt que de **possession**."
+            "La comparaison des deux chi-deux indique laquelle des deux facettes de C1 "
+            "(possession matérielle vs compétence d'usage) est la plus associée au recours à l'intermédiation. "
+            "Un chi-deux plus élevé signifie une association plus forte, pas une causalité plus forte."
         )
 
         # Motif de recours B7
@@ -564,6 +599,18 @@ with tab_lemmes:
             b7_df["%"] = (b7_df["Effectif"] / b7_df["Effectif"].sum() * 100).round(1)
             st.dataframe(b7_df, hide_index=True, use_container_width=True)
 
+        _bias_box(
+            '<strong>Échantillonnage par convenance stratifiée</strong> : les résultats ne sont pas '
+            'généralisables au-delà du département de l\'Ouémé. La représentativité nationale '
+            'nécessiterait les départements du nord (Borgou, Atacora, Alibori).<br>'
+            '<strong>Biais de désirabilité sociale</strong> : B7 (motif du recours) est auto-déclaré. '
+            'Les répondants peuvent surestimer la « commodité » et sous-déclarer le manque de compétence '
+            'par fierté. Le taux réel de contrainte pourrait être supérieur au taux déclaré.<br>'
+            '<strong>Confondeur potentiel</strong> : A5 et A7 sont corrélés (ceux sans smartphone ont souvent '
+            'une faible littératie). Les chi-deux mesurent des associations marginales, pas des effets nets. '
+            'Une régression logistique multivariée serait nécessaire pour isoler les effets.'
+        )
+
     # ── LEMME 2 ──────────────────────────────────────────────────────
     elif "L2" in lemme_choice:
         st.markdown("### Lemme 2 — Indistinguabilité du consentement (P1)")
@@ -573,8 +620,29 @@ with tab_lemmes:
             '<strong>Énoncé :</strong> Sous C1∧C3, le serveur S ne peut distinguer le consentement '
             'actif de C d\'une action provoquée par I (Adv(S) = 0).<br>'
             '<strong>Ce qu\'on cherche :</strong> montrer que les credentials sont délégués d\'emblée, '
-            'rendant la question du consentement caduque.'
+            'rendant la question du consentement caduque.<br>'
+            '<strong>Statut épistémologique :</strong> le lemme est mathématique (indistinguabilité des transcripts). '
+            'L\'enquête montre que le scénario réel est pire que le lemme : les credentials sont '
+            'partagés volontairement, la question de la simulation ne se pose même pas.'
             '</div>', unsafe_allow_html=True,
+        )
+
+        _method_box(
+            '<strong>Méthode — Croisement B3 × B6</strong><br>'
+            'B3 (« avez-vous partagé votre mot de passe ? ») est croisé avec B6 (« étiez-vous '
+            'physiquement présent ? ») par un chi-deux de Pearson. Les deux sont catégorielles nominales.<br>'
+            '<strong>Population :</strong> citoyens intermédiés uniquement (B2 = intermédiaire ou proche). '
+            'Les citoyens autonomes (B2 = soi-même) et les intermédiaires sont exclus car B3 ne s\'applique '
+            'qu\'à ceux qui ont délégué.<br>'
+            '<strong>Hypothèse testée :</strong> si la présence physique protège le consentement, le taux '
+            'de partage devrait être significativement plus bas quand le citoyen est présent (B6 = oui). '
+            'H0 : B3 et B6 sont indépendants.<br><br>'
+            '<strong>Méthode — Convergence citoyens / intermédiaires</strong><br>'
+            'Comparaison descriptive (pas de test) des taux de partage déclarés par les citoyens (B3) '
+            'et par les intermédiaires (B3_int). La convergence des deux taux indépendants renforce la '
+            'crédibilité de la mesure par triangulation des sources.<br><br>'
+            '<strong>Méthode — B3 × A7</strong><br>'
+            'Chi-deux entre littératie numérique et partage de MDP. Teste si la compétence réduit le partage.'
         )
 
         l2_a, l2_b = st.columns(2)
@@ -593,7 +661,6 @@ with tab_lemmes:
                 res3 = _chi2_result(ct3)
                 _stat_box(res3, "significatif" in res3 and "non" not in res3)
 
-                # Taux de partage par niveau de présence
                 st.markdown("**Taux de partage MDP par niveau de présence**")
                 for pres, label in b6_map.items():
                     sub = _intermedies[_intermedies["section_b/B6"] == pres]
@@ -630,6 +697,19 @@ with tab_lemmes:
                 res4 = _chi2_result(ct4)
                 _stat_box(res4, "significatif" in res4 and "non" not in res4)
 
+        _bias_box(
+            '<strong>Désirabilité sociale</strong> : le partage de MDP pourrait être sous-déclaré si '
+            'les répondants le perçoivent comme risqué. Cependant, la convergence des taux citoyens/intermédiaires '
+            'et le taux élevé (> 60%) suggèrent une normalisation de la pratique qui atténue ce biais.<br>'
+            '<strong>Biais de mémoire</strong> : B3 et B6 portent sur « la dernière démarche ». Le rappel '
+            'est fiable pour des événements récents mais se dégrade au-delà de quelques semaines. '
+            'Aucun contrôle de la date de la dernière démarche n\'est disponible.<br>'
+            '<strong>Catégorie « Pas de MDP »</strong> : les répondants déclarant « pas de mot de passe » '
+            '(services sans compte) sont inclus dans le tableau mais ne sont ni dans le numérateur ni '
+            'dans le dénominateur du taux de partage. Cette catégorie n\'invalide pas le test mais réduit '
+            'la puissance en ajoutant une modalité non pertinente pour l\'hypothèse.'
+        )
+
     # ── LEMME 3 ──────────────────────────────────────────────────────
     elif "L3" in lemme_choice:
         st.markdown("### Lemme 3 — Accessibilité du secret (P2)")
@@ -638,8 +718,30 @@ with tab_lemmes:
             'padding:14px 18px;margin-bottom:16px;font-size:13px;color:#1e40af">'
             '<strong>Énoncé :</strong> Sous C1∧C3, I accède au secret et peut produire des '
             'preuves valides pour des sessions futures sans l\'intervention de C.<br>'
-            '<strong>Ce qu\'on cherche :</strong> documenter la chaîne partage → réutilisation → incidents.'
+            '<strong>Ce qu\'on cherche :</strong> documenter la chaîne partage → réutilisation → incidents.<br>'
+            '<strong>Statut épistémologique :</strong> le lemme prédit une capacité technique (I peut forger). '
+            'L\'enquête documente le cas 2 (secret communiqué) et les conséquences observées (incidents). '
+            'Le cas 1 (secret stocké sur le terminal de I) est une propriété des plateformes, non mesurable par questionnaire.'
             '</div>', unsafe_allow_html=True,
+        )
+
+        _method_box(
+            '<strong>Méthode — B3 × C5q</strong><br>'
+            'Chi-deux entre le partage de MDP (B3, 3 modalités) et la connaissance d\'incidents (C5q, oui/non). '
+            'Teste si le partage est associé à un taux d\'incidents plus élevé.<br>'
+            '<strong>Population :</strong> citoyens intermédiés. C5q est posé à tous les répondants, '
+            'mais le croisement n\'est pertinent que pour ceux qui ont délégué.<br>'
+            '<strong>Hypothèse H0 :</strong> B3 et C5q sont indépendants.<br><br>'
+            '<strong>Méthode — B9 × B3</strong><br>'
+            'Chi-deux entre le partage de MDP et l\'accès multi-services (B9). '
+            'Teste l\'amplification once-only : ceux qui partagent le MDP sont-ils plus exposés à un accès multi-services ?<br><br>'
+            '<strong>Méthode — C6q (types d\'incidents)</strong><br>'
+            'Statistique descriptive. C6q est un champ multi-réponses (les valeurs sont séparées par des espaces). '
+            'Chaque type est compté indépendamment. Le mapping vers les propriétés formelles '
+            '(password → P1, copy → P3, unauthorized → P2) est notre interprétation, pas une donnée brute.<br><br>'
+            '<strong>Méthode — Asymétrie citoyens/intermédiaires sur B9</strong><br>'
+            'Comparaison descriptive des taux de multi-services déclarés par les citoyens (B9) '
+            'et par les intermédiaires (B9_int). L\'écart suggère une sous-estimation par les citoyens.'
         )
 
         l3_a, l3_b = st.columns(2)
@@ -705,6 +807,22 @@ with tab_lemmes:
                         True,
                     )
 
+        _bias_box(
+            '<strong>Causalité non établie</strong> : le croisement B3 × C5q montre une association, '
+            'pas une causalité. C5q mesure « avez-vous entendu parler d\'un incident » (ouï-dire), '
+            'pas « avez-vous subi un incident suite au partage ». La chaîne causale '
+            'partage → réutilisation → incident n\'est pas prouvée par ces données.<br>'
+            '<strong>Biais de rappel sur C5q/C6q</strong> : les incidents rapportés sont déclaratifs '
+            'et souvent de seconde main. Aucune vérification factuelle. Les taux d\'incidents '
+            'sont probablement sous-estimés (victimes non conscientes) ou sur-estimés (rumeurs).<br>'
+            '<strong>Multi-réponses C6q</strong> : un même répondant peut cocher plusieurs types. '
+            'Les effectifs ne sont pas des individus mais des mentions. Le total des mentions '
+            'dépasse le nombre de répondants ayant répondu « oui » à C5q.<br>'
+            '<strong>Rejeu effectif non mesuré</strong> : le lemme prédit que I peut réutiliser les '
+            'credentials post-session. L\'enquête ne mesure pas cette réutilisation directement. '
+            'Seuls les incidents déclarés (C6q = unauthorized, n faible) s\'en approchent.'
+        )
+
     # ── LEMME 4 ──────────────────────────────────────────────────────
     elif "L4" in lemme_choice:
         st.markdown("### Lemme 4 — Résistance cryptographique (P2 satisfaite, FIDO2)")
@@ -714,8 +832,20 @@ with tab_lemmes:
             '<strong>Énoncé :</strong> Le confinement matériel de la clé (FIDO2) empêche I de '
             'forger des preuves, même sous C1∧C3. P2 est satisfaite.<br>'
             '<strong>Ce qu\'on cherche :</strong> ce lemme est purement cryptographique. L\'enquête '
-            'documente la faisabilité du déploiement FIDO2 sur le terrain.'
+            'ne peut ni le confirmer ni l\'infirmer. Elle documente la faisabilité du déploiement.<br>'
+            '<strong>Statut épistémologique :</strong> seul lemme sans ancrage empirique direct, '
+            'et seul qui n\'en a pas besoin. Il pose une condition suffisante (confinement matériel → P2), '
+            'pas une assertion sur le terrain. Les données ci-dessous évaluent la faisabilité, pas la validité.'
             '</div>', unsafe_allow_html=True,
+        )
+
+        _method_box(
+            '<strong>Méthode</strong><br>'
+            'Statistiques descriptives uniquement (fréquences, pourcentages). Aucun test d\'hypothèse : '
+            'il n\'y a rien à tester puisque FIDO2 n\'est pas déployé dans les plateformes étudiées.<br>'
+            '<strong>Population :</strong> tous les répondants exploitables (citoyens + intermédiaires). '
+            'A5 (type de téléphone) et A7 (littératie) sont des proxys de la capacité à utiliser un '
+            'authentificateur matériel.'
         )
 
         st.markdown("##### Parc de terminaux (A5) — faisabilité FIDO2")
@@ -741,6 +871,18 @@ with tab_lemmes:
             False,
         )
 
+        _bias_box(
+            '<strong>Proxy indirect</strong> : posséder un smartphone ≠ pouvoir utiliser FIDO2. '
+            'Le WebAuthn nécessite un navigateur compatible, un OS à jour, et un geste d\'activation '
+            '(empreinte, PIN). Ces prérequis ne sont pas mesurés par A5.<br>'
+            '<strong>Aucune donnée sur les authentificateurs physiques</strong> : l\'enquête ne demande '
+            'pas si le répondant possède une clé USB de sécurité (YubiKey, Titan). Ce scénario est '
+            'jugé irréaliste dans le contexte étudié mais l\'absence de donnée reste une limite.<br>'
+            '<strong>Extrapolation du lemme</strong> : les chiffres de faisabilité ne disent rien sur P2. '
+            'Le lemme tient par construction cryptographique (confinement matériel). Ces données '
+            'informent la discussion (section X), pas la preuve.'
+        )
+
     # ── LEMME 5 ──────────────────────────────────────────────────────
     elif "L5" in lemme_choice:
         st.markdown("### Lemme 5 — Impossibilité de la livraison exclusive (P3)")
@@ -750,8 +892,31 @@ with tab_lemmes:
             '<strong>Énoncé :</strong> Sous C1∧C3, aucun mécanisme numérique ne peut garantir '
             'Receive(D(s)) = {C}. Le document passe par I.<br>'
             '<strong>Ce qu\'on cherche :</strong> documenter que la livraison via I est massive '
-            'et que la présence physique ne la corrige pas.'
+            'et que la présence physique ne la corrige pas.<br>'
+            '<strong>Statut épistémologique :</strong> le lemme est déductif (3 cas exhaustifs). '
+            'L\'enquête documente que le cas 1 (livraison via T) domine massivement et que '
+            'les mécanismes correctifs (présence, littératie) ne restaurent pas l\'exclusivité.'
             '</div>', unsafe_allow_html=True,
+        )
+
+        _method_box(
+            '<strong>Méthode — B4 × B6</strong><br>'
+            'Chi-deux entre le destinataire du document (B4, 4 modalités : moi / remis par I / gardé / ne sait pas) '
+            'et la présence physique (B6, 3 niveaux). Teste si la présence du citoyen modifie la voie de livraison.<br>'
+            '<strong>Population :</strong> citoyens intermédiés (B2 ≠ soi-même).<br>'
+            '<strong>Hypothèse H0 :</strong> B4 et B6 sont indépendants.<br><br>'
+            '<strong>Méthode — B4 × A7</strong><br>'
+            'Chi-deux entre le destinataire et la littératie numérique. Teste si les citoyens plus compétents '
+            'récupèrent davantage le document directement.<br><br>'
+            '<strong>Méthode — C4q citoyens vs intermédiaires</strong><br>'
+            'Test de Mann-Whitney U (bilatéral). C4q est une échelle de Likert (1-5, variable ordinale), '
+            'ce qui exclut le t-test (hypothèse de normalité non vérifiable). Mann-Whitney compare les rangs '
+            'moyens des deux groupes indépendants.<br>'
+            '<strong>H0 :</strong> les distributions de C4q sont identiques entre citoyens intermédiés et intermédiaires.<br><br>'
+            '<strong>Méthode — B4 par commune</strong><br>'
+            'Statistique descriptive. Le taux de livraison via I par commune permet de visualiser '
+            'le gradient territorial. Aucun test : les effectifs par commune sont trop hétérogènes '
+            'pour un chi-deux inter-communes fiable.'
         )
 
         l5_a, l5_b = st.columns(2)
@@ -816,6 +981,22 @@ with tab_lemmes:
             commune_b4["Via I (%)"] = commune_b4["Via I (%)"].round(1)
             commune_b4 = commune_b4.sort_values("Via I (%)", ascending=False)
             st.dataframe(commune_b4, hide_index=True, use_container_width=True)
+
+        _bias_box(
+            '<strong>Ambiguïté B4 « remis par l\'intermédiaire »</strong> : B4 = « handed » signifie que '
+            'l\'intermédiaire a remis le document au citoyen. Cela ne signifie pas que l\'intermédiaire a conservé '
+            'une copie, seulement que le canal de livraison passe par I. Le lemme prédit I ∈ Receive(D), '
+            'pas Receive(D) = {I}. La distinction est correcte mais subtile.<br>'
+            '<strong>Biais de non-réponse B4</strong> : « ne sait pas » (2-3%) peut masquer des cas où '
+            'le document n\'a jamais été remis ou a été perdu. Ces cas renforcent plutôt la violation de P3.<br>'
+            '<strong>Mann-Whitney et Likert</strong> : l\'utilisation de Mann-Whitney sur des échelles '
+            'à 5 points est standard en sciences sociales (Jamieson 2004 vs Norman 2010, débat non tranché). '
+            'Nous traitons les Likert comme ordinales (position conservative). Les moyennes sont rapportées '
+            'à titre indicatif mais le test porte sur les rangs, pas les moyennes.<br>'
+            '<strong>Effectifs par commune</strong> : certaines communes ont peu de citoyens intermédiés '
+            '(Aguégués, Bonou). Les pourcentages par commune sont instables pour n < 30. '
+            'Le gradient territorial est illustratif, pas confirmatoire.'
+        )
 
 
 # ── Tab Base de données ──────────────────────────────────────────────
