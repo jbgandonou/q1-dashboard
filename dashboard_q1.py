@@ -531,6 +531,33 @@ with tab_lemmes:
     _int = df_ok[df_ok["section_a/A1"] == "intermediary"]
     _intermedies = _cit[_cit["section_b/B2"].isin(["intermediary", "relative"])]
 
+    # Rappel des items du questionnaire utilisés dans les lemmes
+    ITEMS_REF = {
+        "A5": ("Quel type de téléphone possédez-vous ?", "Smartphone / Téléphone basique / Aucun"),
+        "A7": ("Utilisez-vous internet ?", "Oui, facilement / Oui, avec difficulté / Non"),
+        "B2": ("Qui a effectué la démarche sur le terminal ?", "Moi-même / Un intermédiaire / Un proche"),
+        "B3": ("Avez-vous communiqué votre mot de passe à cette personne ?", "Oui / Non / Pas de mot de passe"),
+        "B3_int": ("Le citoyen vous a-t-il communiqué son mot de passe ?", "Oui / Non / Pas de mot de passe"),
+        "B4": ("Qui a reçu le document final ?", "Moi directement / Remis par l'intermédiaire / Gardé par l'intermédiaire / Ne sait pas"),
+        "B6": ("Étiez-vous physiquement présent pendant la démarche ?", "Oui, tout le temps / Oui, partiellement / Non"),
+        "B7": ("Pourquoi avez-vous confié cette démarche à quelqu'un d'autre ?", "Commodité / Pas de terminal / Manque de compétence / Autre"),
+        "B9": ("L'intermédiaire a-t-il accédé à plusieurs services dans la même session ?", "Un seul service / Plusieurs services / Ne sait pas"),
+        "B9_int": ("Avez-vous accédé à plusieurs services pour ce citoyen ?", "Un seul service / Plusieurs services / Ne sait pas"),
+        "C4q": ("Les documents devraient être remis directement à l'usager (1-5)", "1 = pas du tout d'accord → 5 = tout à fait d'accord"),
+        "C5q": ("Avez-vous entendu parler d'un cas où les informations d'une personne ont été utilisées sans son accord ?", "Oui / Non"),
+        "C6q": ("Si oui, quel type d'incident ? (multi-réponses)", "Copie de documents / Réutilisation MDP / Démarche non autorisée / Autre"),
+    }
+
+    def _show_items(item_keys: list) -> None:
+        rows = []
+        for k in item_keys:
+            if k in ITEMS_REF:
+                q, r = ITEMS_REF[k]
+                rows.append({"Item": k, "Question posée": q, "Réponses proposées": r})
+        if rows:
+            with st.expander("Rappel des questions du questionnaire utilisées", expanded=False):
+                st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
+
     # ── LEMME 1 ──────────────────────────────────────────────────────
     if "L1" in lemme_choice:
         st.markdown("### Lemme 1 — Observabilité du terminal")
@@ -545,6 +572,8 @@ with tab_lemmes:
             'L\'enquête ne le prouve pas : elle vérifie que ses prémisses (C1 et C3) existent sur le terrain.'
             '</div>', unsafe_allow_html=True,
         )
+
+        _show_items(["A5", "A7", "B2", "B7"])
 
         _method_box(
             '<strong>Méthode</strong><br>'
@@ -626,6 +655,8 @@ with tab_lemmes:
             'partagés volontairement, la question de la simulation ne se pose même pas.'
             '</div>', unsafe_allow_html=True,
         )
+
+        _show_items(["B3", "B3_int", "B6", "A7"])
 
         _method_box(
             '<strong>Méthode — Croisement B3 × B6</strong><br>'
@@ -724,6 +755,8 @@ with tab_lemmes:
             'Le cas 1 (secret stocké sur le terminal de I) est une propriété des plateformes, non mesurable par questionnaire.'
             '</div>', unsafe_allow_html=True,
         )
+
+        _show_items(["B3", "B9", "B9_int", "C5q", "C6q"])
 
         _method_box(
             '<strong>Méthode — B3 × C5q</strong><br>'
@@ -839,6 +872,8 @@ with tab_lemmes:
             '</div>', unsafe_allow_html=True,
         )
 
+        _show_items(["A5", "A7"])
+
         _method_box(
             '<strong>Méthode</strong><br>'
             'Statistiques descriptives uniquement (fréquences, pourcentages). Aucun test d\'hypothèse : '
@@ -898,6 +933,8 @@ with tab_lemmes:
             'les mécanismes correctifs (présence, littératie) ne restaurent pas l\'exclusivité.'
             '</div>', unsafe_allow_html=True,
         )
+
+        _show_items(["B4", "B6", "A7", "C4q"])
 
         _method_box(
             '<strong>Méthode — B4 × B6</strong><br>'
