@@ -932,13 +932,15 @@ def _render_lemmes():
             from statsmodels.api import Logit
 
             reg_df = _cit[["section_a/A5", "section_a/A7", "section_a/A2",
-                           "section_a/A6", "metadata_terrain/zone", "section_b/B2"]].copy()
+                           "section_a/A6", "metadata_terrain/zone",
+                           "section_b/B5", "section_b/B2"]].copy()
             reg_df = reg_df.dropna()
             reg_df["y"] = (reg_df["section_b/B2"] != "self").astype(int)
 
             dummies = pd.get_dummies(
                 reg_df[["section_a/A5", "section_a/A7", "section_a/A2",
-                         "section_a/A6", "metadata_terrain/zone"]],
+                         "section_a/A6", "metadata_terrain/zone",
+                         "section_b/B5"]],
                 drop_first=True, dtype=float,
             )
             dummies.insert(0, "const", 1.0)
@@ -953,7 +955,7 @@ def _render_lemmes():
                     continue
                 sig_flag = "Oui" if model.pvalues[i] < 0.05 else "Non"
                 reg_rows.append({
-                    "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", ""),
+                    "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
                     "OR": f"{or_vals[i]:.2f}",
                     "IC 95%": f"[{ci[i, 0]:.2f} – {ci[i, 1]:.2f}]",
                     "p": f"{model.pvalues[i]:.4f}",
@@ -972,10 +974,10 @@ def _render_lemmes():
             )
 
             # Conclusion régression
-            sig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "")
+            sig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
                          for i, col in enumerate(dummies.columns)
                          if col != "const" and model.pvalues[i] < 0.05]
-            nonsig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "")
+            nonsig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
                             for i, col in enumerate(dummies.columns)
                             if col != "const" and model.pvalues[i] >= 0.05]
 
@@ -1016,6 +1018,78 @@ def _render_lemmes():
 
         except Exception as e:
             st.warning(f"Régression logistique non disponible : {e}")
+
+        # ── Régression multinomiale (3 modalités de B2) ──
+        with st.expander("Régression multinomiale (3 modalités de B2)"):
+            try:
+                from statsmodels.api import MNLogit
+
+                mn_df = _cit[["section_a/A5", "section_a/A7", "section_a/A2",
+                               "section_a/A6", "metadata_terrain/zone",
+                               "section_b/B5", "section_b/B2"]].copy()
+                mn_df = mn_df.dropna()
+
+                b2_map = {}
+                for v in mn_df["section_b/B2"].unique():
+                    vl = str(v).lower().strip()
+                    if vl == "self":
+                        b2_map[v] = "self"
+                    elif vl == "intermediary":
+                        b2_map[v] = "intermediary"
+                    else:
+                        b2_map[v] = "relative"
+                mn_df["B2_cat"] = mn_df["section_b/B2"].map(b2_map).astype("category")
+
+                if mn_df["B2_cat"].nunique() < 2:
+                    st.info("Pas assez de modalités distinctes pour B2 (< 2).")
+                else:
+                    mn_dummies = pd.get_dummies(
+                        mn_df[["section_a/A5", "section_a/A7", "section_a/A2",
+                                "section_a/A6", "metadata_terrain/zone",
+                                "section_b/B5"]],
+                        drop_first=True, dtype=float,
+                    )
+                    mn_dummies.insert(0, "const", 1.0)
+
+                    y_mn = pd.Categorical(mn_df["B2_cat"], categories=["self", "intermediary", "relative"])
+                    y_codes = y_mn.codes
+
+                    mn_model = MNLogit(y_codes, mn_dummies.values).fit(disp=0, method="bfgs", maxiter=500)
+
+                    st.markdown(
+                        f'<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                        f'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                        f'Pseudo-R² (McFadden) = {mn_model.prsquared:.3f} · '
+                        f'AIC = {mn_model.aic:.1f} · '
+                        f'n = {int(mn_model.nobs)} · '
+                        f'Log-likelihood = {mn_model.llf:.1f}'
+                        f'</div>', unsafe_allow_html=True,
+                    )
+
+                    cats = ["self", "intermediary", "relative"]
+                    for j in range(mn_model.params.shape[1]):
+                        ref_cat = cats[0]
+                        comp_cat = cats[j + 1] if (j + 1) < len(cats) else f"cat_{j+1}"
+                        st.markdown(f"**{comp_cat} vs {ref_cat}**")
+                        mn_rows = []
+                        or_j = np.exp(mn_model.params[:, j])
+                        ci_j = np.exp(mn_model.conf_int()[j])
+                        pv_j = mn_model.pvalues[:, j]
+                        for i, col in enumerate(mn_dummies.columns):
+                            if col == "const":
+                                continue
+                            sig_flag = "Oui" if pv_j[i] < 0.05 else "Non"
+                            mn_rows.append({
+                                "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
+                                "OR": f"{or_j[i]:.2f}",
+                                "IC 95%": f"[{ci_j[i, 0]:.2f} – {ci_j[i, 1]:.2f}]",
+                                "p": f"{pv_j[i]:.4f}",
+                                "Significatif": sig_flag,
+                            })
+                        st.dataframe(pd.DataFrame(mn_rows), hide_index=True, use_container_width=True)
+
+            except Exception as e:
+                st.warning(f"Régression multinomiale non disponible : {e}")
 
         # Correction FDR
         _fdr_correction_box(l1_pvals, l1_labels)
