@@ -1117,29 +1117,17 @@ with tab_detail:
 
 # ── Tab 7 : Base de données ──────────────────────────────────────────────
 
-BDD_DISPLAY_COLS = [
-    "_id", "date", "commune", "arrondissement", "enqueteur", "role", "genre",
-    "age", "education", "mode", "n_answered", "duration_min", "flagged",
-]
-BDD_SURVEY_LABELS = {
-    "section_a/A1": "A1_role", "section_a/A2": "A2_age", "section_a/A3": "A3_genre",
-    "section_a/A5": "A5_telephone", "section_a/A6": "A6_education", "section_a/A7": "A7_litteratie",
-    "section_b/B1": "B1_demarche", "section_b/B2": "B2_qui_opere", "section_b/B3": "B3_partage_mdp",
-    "section_b/B3_int": "B3_int_recoit_mdp", "section_b/B4": "B4_destinataire_doc",
-    "section_b/B4_int": "B4_int_remet_doc", "section_b/B5": "B5_service",
-    "section_b/B5bis": "B5bis_service_autre", "section_b/B6": "B6_presence",
-    "section_b/B6_int": "B6_int_presence", "section_b/B7": "B7_motif",
-    "section_b/B7bis": "B7bis_motif_autre", "section_b/B8": "B8_connexion",
-    "section_b/B9": "B9_multi_services", "section_b/B9_int": "B9_int_multi_services",
-    "section_c/C1q": "C1q_confiance", "section_c/C1q_int": "C1q_int_confiance",
-    "section_c/C2q": "C2q_securite", "section_c/C2q_int": "C2q_int_securite",
-    "section_c/C3q": "C3q_forgeabilite", "section_c/C4q": "C4q_livraison_exclusive",
-    "section_c/C5q": "C5q_incidents", "section_c/C6q": "C6q_type_incidents",
-    "section_c/C6bis": "C6bis_incidents_detail",
+BDD_INTERNAL_COLS = {
+    "__version__", "_attachments", "_geolocation", "_xform_id_string",
+    "_submitted_by", "_uuid", "_validation_status", "_status",
+    "formhub/uuid", "meta/instanceID", "meta/rootUuid",
+    "start_dt", "end_dt", "seuil_min", "n_answered",
+    "flag_court", "flag_long", "flag_a1", "flag_consent", "flag_doublon",
+    "doublon_de",
 }
 
 with tab_bdd:
-    st.subheader(f"Base de données complète — {len(df)} soumissions")
+    st.subheader(f"Base de données complète — {len(df)} soumissions, {len(df.columns)} colonnes")
 
     bdd_f1, bdd_f2, bdd_f3 = st.columns(3)
     with bdd_f1:
@@ -1161,26 +1149,21 @@ with tab_bdd:
     elif bdd_sel_statut == "Exclues":
         bdd_view = bdd_view[bdd_view["flagged"]]
 
-    show_full = st.checkbox("Afficher toutes les colonnes (items A/B/C)", value=False, key="bdd_full")
+    all_cols = [c for c in bdd_view.columns if c not in BDD_INTERNAL_COLS]
+    bdd_export = bdd_view[all_cols].copy()
+    if "duration_min" in bdd_export.columns:
+        bdd_export["duration_min"] = bdd_export["duration_min"].round(1)
+    if "flagged" in bdd_export.columns:
+        bdd_export["flagged"] = bdd_export["flagged"].map({True: "Exclue", False: "OK"})
 
-    if show_full:
-        rename_map = {k: v for k, v in BDD_SURVEY_LABELS.items() if k in bdd_view.columns}
-        bdd_export = bdd_view[BDD_DISPLAY_COLS + [c for c in SURVEY_COLS if c in bdd_view.columns]].copy()
-        bdd_export = bdd_export.rename(columns=rename_map)
-    else:
-        bdd_export = bdd_view[BDD_DISPLAY_COLS].copy()
+    st.dataframe(bdd_export.sort_values("date", ascending=False) if "date" in bdd_export.columns else bdd_export,
+                 hide_index=True, use_container_width=True, height=700)
 
-    bdd_export["duration_min"] = bdd_export["duration_min"].round(1)
-    bdd_export["flagged"] = bdd_export["flagged"].map({True: "Exclue", False: "OK"})
-
-    st.dataframe(bdd_export.sort_values("date", ascending=False), hide_index=True,
-                 use_container_width=True, height=700)
-
-    st.caption(f"{len(bdd_view)} lignes affichées sur {len(df)} totales")
+    st.caption(f"{len(bdd_view)} lignes x {len(all_cols)} colonnes")
 
     csv = bdd_export.to_csv(index=False).encode("utf-8")
     st.download_button(
-        label=f"Télécharger CSV ({len(bdd_view)} lignes)",
+        label=f"Télécharger CSV ({len(bdd_view)} lignes x {len(all_cols)} colonnes)",
         data=csv,
         file_name=f"q1_oueme_{bdd_sel_statut.lower()}_{len(bdd_view)}.csv",
         mime="text/csv",
