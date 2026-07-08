@@ -854,11 +854,11 @@ def _render_lemmes():
 
         with l1_a:
             st.markdown("##### A7 (littératie) × B2 (qui opère)")
-            st.caption(f"Population : citoyens uniquement (n = {len(_cit)})")
-            ct1 = pd.crosstab(
-                _cit["section_a/A7"].map({"yes_easy": "Facile", "yes_hard": "Difficile", "no": "Non"}).fillna("?"),
-                _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
-            )
+            _l1a_a7 = _cit["section_a/A7"].map({"yes_easy": "Facile", "yes_hard": "Difficile", "no": "Non"})
+            _l1a_b2 = _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"})
+            _l1a_mask = _l1a_a7.notna() & _l1a_b2.notna()
+            st.caption(f"Population : citoyens avec A7 et B2 renseignés (n = {_l1a_mask.sum()})")
+            ct1 = pd.crosstab(_l1a_a7[_l1a_mask], _l1a_b2[_l1a_mask])
             _contingency_html(ct1, "Littératie numérique × Opérateur du terminal")
             _chi2_full(ct1, p_collector=l1_pvals,
                        var_row="la littératie numérique (A7)", var_col="le recours à l'intermédiation (B2)")
@@ -866,11 +866,11 @@ def _render_lemmes():
 
         with l1_b:
             st.markdown("##### A5 (téléphone) × B2 (qui opère)")
-            st.caption(f"Population : citoyens uniquement (n = {len(_cit)})")
-            ct2 = pd.crosstab(
-                _cit["section_a/A5"].map({"smartphone": "Smartphone", "basic": "Basique", "none": "Aucun"}).fillna("?"),
-                _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
-            )
+            _l1b_a5 = _cit["section_a/A5"].map({"smartphone": "Smartphone", "basic": "Basique", "none": "Aucun"})
+            _l1b_b2 = _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"})
+            _l1b_mask = _l1b_a5.notna() & _l1b_b2.notna()
+            st.caption(f"Population : citoyens avec A5 et B2 renseignés (n = {_l1b_mask.sum()})")
+            ct2 = pd.crosstab(_l1b_a5[_l1b_mask], _l1b_b2[_l1b_mask])
             _contingency_html(ct2, "Type de téléphone × Opérateur du terminal")
             _chi2_full(ct2, p_collector=l1_pvals,
                        var_row="le type de téléphone (A5)", var_col="le recours à l'intermédiation (B2)")
@@ -899,7 +899,7 @@ def _render_lemmes():
             '</div>', unsafe_allow_html=True,
         )
         if len(_intermedies):
-            b7_df = _intermedies["section_b/B7"].map(b7_map).fillna("?").value_counts().reset_index()
+            b7_df = _intermedies["section_b/B7"].map(b7_map).dropna().value_counts().reset_index()
             b7_df.columns = ["Motif", "Effectif"]
             b7_total = b7_df["Effectif"].sum()
             b7_df["% [IC 95% Wilson]"] = b7_df["Effectif"].apply(
@@ -1079,10 +1079,10 @@ def _render_lemmes():
             if len(_intermedies):
                 b3_map = {"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"}
                 b6_map = {"yes_all": "Présent tout le temps", "yes_partial": "Présent partiellement", "no": "Absent"}
-                ct3 = pd.crosstab(
-                    _intermedies["section_b/B6"].map(b6_map).fillna("?"),
-                    _intermedies["section_b/B3"].map(b3_map).fillna("?"),
-                )
+                _l2_b6 = _intermedies["section_b/B6"].map(b6_map)
+                _l2_b3 = _intermedies["section_b/B3"].map(b3_map)
+                _l2_mask = _l2_b6.notna() & _l2_b3.notna()
+                ct3 = pd.crosstab(_l2_b6[_l2_mask], _l2_b3[_l2_mask])
                 _contingency_html(ct3, "Présence physique × Partage de mot de passe")
                 _chi2_full(ct3, p_collector=l2_pvals,
                            var_row="la présence physique (B6)", var_col="le partage de mot de passe (B3)")
@@ -1158,10 +1158,10 @@ def _render_lemmes():
             st.caption("Les plus compétents partagent-ils moins ?")
             if len(_intermedies):
                 a7_map = {"yes_easy": "Facile", "yes_hard": "Difficile", "no": "Non"}
-                ct4 = pd.crosstab(
-                    _intermedies["section_a/A7"].map(a7_map).fillna("?"),
-                    _intermedies["section_b/B3"].map(b3_map).fillna("?"),
-                )
+                _l2b_a7 = _intermedies["section_a/A7"].map(a7_map)
+                _l2b_b3 = _intermedies["section_b/B3"].map(b3_map)
+                _l2b_mask = _l2b_a7.notna() & _l2b_b3.notna()
+                ct4 = pd.crosstab(_l2b_a7[_l2b_mask], _l2b_b3[_l2b_mask])
                 _contingency_html(ct4, "Littératie × Partage MDP")
                 _chi2_full(ct4, p_collector=l2_pvals,
                            var_row="la littératie numérique (A7)", var_col="le partage de mot de passe (B3)")
@@ -1226,8 +1226,10 @@ def _render_lemmes():
             st.markdown("##### B3 (partage MDP) × C5q (connaissance d'incidents)")
             st.caption(f"Population : citoyens intermédiés (n = {len(_intermedies)})")
             if len(_intermedies):
-                b3_bin = _intermedies["section_b/B3"].map({"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"}).fillna("?")
-                c5_bin = _intermedies["section_c/C5q"].map({"yes": "Incidents connus", "no": "Aucun incident"}).fillna("?")
+                b3_bin = _intermedies["section_b/B3"].map({"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"})
+                c5_bin = _intermedies["section_c/C5q"].map({"yes": "Incidents connus", "no": "Aucun incident"})
+                _l3a_mask = b3_bin.notna() & c5_bin.notna()
+                b3_bin, c5_bin = b3_bin[_l3a_mask], c5_bin[_l3a_mask]
                 ct5 = pd.crosstab(b3_bin, c5_bin)
                 _contingency_html(ct5, "Partage MDP × Connaissance d'incidents")
                 _chi2_full(ct5, p_collector=l3_pvals,
@@ -1238,10 +1240,10 @@ def _render_lemmes():
             st.caption("Amplification once-only : le secret ouvre plusieurs services ?")
             if len(_intermedies):
                 b9_map = {"one": "Un seul", "multiple": "Plusieurs", "unknown": "Ne sait pas"}
-                ct6 = pd.crosstab(
-                    _intermedies["section_b/B3"].map({"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"}).fillna("?"),
-                    _intermedies["section_b/B9"].map(b9_map).fillna("?"),
-                )
+                _l3b_b3 = _intermedies["section_b/B3"].map({"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"})
+                _l3b_b9 = _intermedies["section_b/B9"].map(b9_map)
+                _l3b_mask = _l3b_b3.notna() & _l3b_b9.notna()
+                ct6 = pd.crosstab(_l3b_b3[_l3b_mask], _l3b_b9[_l3b_mask])
                 _contingency_html(ct6, "Partage MDP × Accès multi-services")
                 _chi2_full(ct6, p_collector=l3_pvals,
                            var_row="le partage de MDP (B3)", var_col="l'accès multi-services (B9)")
@@ -1281,7 +1283,7 @@ def _render_lemmes():
             st.markdown("##### Amplification côté intermédiaires")
             st.caption(f"B9_int : accès multi-services (n intermédiaires = {len(_int)})")
             if len(_int):
-                b9i = _int["section_b/B9_int"].map(b9_map).fillna("?").value_counts().reset_index()
+                b9i = _int["section_b/B9_int"].map(b9_map).dropna().value_counts().reset_index()
                 b9i.columns = ["Accès multi-services", "Effectif"]
                 b9i_total = b9i["Effectif"].sum()
                 b9i["% = Effectif / N"] = b9i["Effectif"].apply(lambda x: f"{x}/{b9i_total} = {x / b9i_total * 100:.1f}%")
@@ -1350,7 +1352,7 @@ def _render_lemmes():
         st.markdown(f"##### Parc de terminaux (A5) — faisabilité FIDO2")
         st.caption(f"Population : tous répondants exploitables (n = {n_total})")
         a5_map = {"smartphone": "Smartphone", "basic": "Téléphone basique", "none": "Aucun téléphone"}
-        a5_df = df_ok["section_a/A5"].map(a5_map).fillna("?").value_counts().reset_index()
+        a5_df = df_ok["section_a/A5"].map(a5_map).dropna().value_counts().reset_index()
         a5_df.columns = ["Type de terminal", "Effectif"]
         a5_df["% [IC 95%]"] = a5_df["Effectif"].apply(
             lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}% [{_wilson_ci(x, n_total)[0]:.0f}-{_wilson_ci(x, n_total)[1]:.0f}]"
@@ -1359,7 +1361,7 @@ def _render_lemmes():
 
         st.markdown("##### Littératie numérique (A7) — capacité d'usage")
         a7_map = {"yes_easy": "Utilise internet facilement", "yes_hard": "Utilise avec difficulté", "no": "N'utilise pas internet"}
-        a7_df = df_ok["section_a/A7"].map(a7_map).fillna("?").value_counts().reset_index()
+        a7_df = df_ok["section_a/A7"].map(a7_map).dropna().value_counts().reset_index()
         a7_df.columns = ["Littératie", "Effectif"]
         a7_df["% [IC 95%]"] = a7_df["Effectif"].apply(
             lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}% [{_wilson_ci(x, n_total)[0]:.0f}-{_wilson_ci(x, n_total)[1]:.0f}]"
@@ -1440,10 +1442,10 @@ def _render_lemmes():
             if len(_intermedies):
                 b4_map = {"me": "Citoyen directement", "handed": "Via intermédiaire", "kept": "Gardé par I", "unknown": "Ne sait pas"}
                 b6_map = {"yes_all": "Présent tout le temps", "yes_partial": "Partiellement", "no": "Absent"}
-                ct7 = pd.crosstab(
-                    _intermedies["section_b/B6"].map(b6_map).fillna("?"),
-                    _intermedies["section_b/B4"].map(b4_map).fillna("?"),
-                )
+                _l5a_b6 = _intermedies["section_b/B6"].map(b6_map)
+                _l5a_b4 = _intermedies["section_b/B4"].map(b4_map)
+                _l5a_mask = _l5a_b6.notna() & _l5a_b4.notna()
+                ct7 = pd.crosstab(_l5a_b6[_l5a_mask], _l5a_b4[_l5a_mask])
                 _contingency_html(ct7, "Présence × Destinataire du document")
                 _chi2_full(ct7, p_collector=l5_pvals,
                            var_row="la présence physique (B6)", var_col="le destinataire du document (B4)")
@@ -1490,10 +1492,10 @@ def _render_lemmes():
             st.caption("Les plus compétents reçoivent-ils directement ?")
             if len(_intermedies):
                 a7_map = {"yes_easy": "Facile", "yes_hard": "Difficile", "no": "Non"}
-                ct8 = pd.crosstab(
-                    _intermedies["section_a/A7"].map(a7_map).fillna("?"),
-                    _intermedies["section_b/B4"].map(b4_map).fillna("?"),
-                )
+                _l5b_a7 = _intermedies["section_a/A7"].map(a7_map)
+                _l5b_b4 = _intermedies["section_b/B4"].map(b4_map)
+                _l5b_mask = _l5b_a7.notna() & _l5b_b4.notna()
+                ct8 = pd.crosstab(_l5b_a7[_l5b_mask], _l5b_b4[_l5b_mask])
                 _contingency_html(ct8, "Littératie × Destinataire du document")
                 _chi2_full(ct8, p_collector=l5_pvals,
                            var_row="la littératie numérique (A7)", var_col="le destinataire du document (B4)")
