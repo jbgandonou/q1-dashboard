@@ -574,7 +574,7 @@ st.markdown("---")
 
 # ── Tabs ────────────────────────────────────────────────────────────────
 
-tab_resultats, tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_detail = st.tabs([
+tab_resultats, tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, tab_consent, tab_detail, tab_bdd = st.tabs([
     "Résultats clés",
     "Quotas",
     "Profil échantillon",
@@ -583,6 +583,7 @@ tab_resultats, tab_quotas, tab_demo, tab_qualite, tab_timeline, tab_doublons, ta
     "Doublons",
     "Consentement",
     "Exclusions",
+    "Base de données",
 ])
 
 
@@ -1112,6 +1113,78 @@ with tab_detail:
     cols.columns = ["ID", "Date", "Commune", "Arrondissement", "Enquêteur", "Rôle",
                      "Questions", "Seuil (min)", "Durée (min)"]
     st.dataframe(cols.sort_values("Durée (min)"), hide_index=True, use_container_width=True, height=600)
+
+
+# ── Tab 7 : Base de données ──────────────────────────────────────────────
+
+BDD_DISPLAY_COLS = [
+    "_id", "date", "commune", "arrondissement", "enqueteur", "role", "genre",
+    "age", "education", "mode", "n_answered", "duration_min", "flagged",
+]
+BDD_SURVEY_LABELS = {
+    "section_a/A1": "A1_role", "section_a/A2": "A2_age", "section_a/A3": "A3_genre",
+    "section_a/A5": "A5_telephone", "section_a/A6": "A6_education", "section_a/A7": "A7_litteratie",
+    "section_b/B1": "B1_demarche", "section_b/B2": "B2_qui_opere", "section_b/B3": "B3_partage_mdp",
+    "section_b/B3_int": "B3_int_recoit_mdp", "section_b/B4": "B4_destinataire_doc",
+    "section_b/B4_int": "B4_int_remet_doc", "section_b/B5": "B5_service",
+    "section_b/B5bis": "B5bis_service_autre", "section_b/B6": "B6_presence",
+    "section_b/B6_int": "B6_int_presence", "section_b/B7": "B7_motif",
+    "section_b/B7bis": "B7bis_motif_autre", "section_b/B8": "B8_connexion",
+    "section_b/B9": "B9_multi_services", "section_b/B9_int": "B9_int_multi_services",
+    "section_c/C1q": "C1q_confiance", "section_c/C1q_int": "C1q_int_confiance",
+    "section_c/C2q": "C2q_securite", "section_c/C2q_int": "C2q_int_securite",
+    "section_c/C3q": "C3q_forgeabilite", "section_c/C4q": "C4q_livraison_exclusive",
+    "section_c/C5q": "C5q_incidents", "section_c/C6q": "C6q_type_incidents",
+    "section_c/C6bis": "C6bis_incidents_detail",
+}
+
+with tab_bdd:
+    st.subheader(f"Base de données complète — {len(df)} soumissions")
+
+    bdd_f1, bdd_f2, bdd_f3 = st.columns(3)
+    with bdd_f1:
+        bdd_communes = ["Toutes"] + sorted(df["commune"].unique().tolist())
+        bdd_sel_commune = st.selectbox("Commune", bdd_communes, key="bdd_commune")
+    with bdd_f2:
+        bdd_enqueteurs = ["Tous"] + sorted(df["enqueteur"].unique().tolist())
+        bdd_sel_enq = st.selectbox("Enquêteur", bdd_enqueteurs, key="bdd_enq")
+    with bdd_f3:
+        bdd_sel_statut = st.selectbox("Statut", ["Toutes", "Exploitables", "Exclues"], key="bdd_statut")
+
+    bdd_view = df.copy()
+    if bdd_sel_commune != "Toutes":
+        bdd_view = bdd_view[bdd_view["commune"] == bdd_sel_commune]
+    if bdd_sel_enq != "Tous":
+        bdd_view = bdd_view[bdd_view["enqueteur"] == bdd_sel_enq]
+    if bdd_sel_statut == "Exploitables":
+        bdd_view = bdd_view[~bdd_view["flagged"]]
+    elif bdd_sel_statut == "Exclues":
+        bdd_view = bdd_view[bdd_view["flagged"]]
+
+    show_full = st.checkbox("Afficher toutes les colonnes (items A/B/C)", value=False, key="bdd_full")
+
+    if show_full:
+        rename_map = {k: v for k, v in BDD_SURVEY_LABELS.items() if k in bdd_view.columns}
+        bdd_export = bdd_view[BDD_DISPLAY_COLS + [c for c in SURVEY_COLS if c in bdd_view.columns]].copy()
+        bdd_export = bdd_export.rename(columns=rename_map)
+    else:
+        bdd_export = bdd_view[BDD_DISPLAY_COLS].copy()
+
+    bdd_export["duration_min"] = bdd_export["duration_min"].round(1)
+    bdd_export["flagged"] = bdd_export["flagged"].map({True: "Exclue", False: "OK"})
+
+    st.dataframe(bdd_export.sort_values("date", ascending=False), hide_index=True,
+                 use_container_width=True, height=700)
+
+    st.caption(f"{len(bdd_view)} lignes affichées sur {len(df)} totales")
+
+    csv = bdd_export.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label=f"Télécharger CSV ({len(bdd_view)} lignes)",
+        data=csv,
+        file_name=f"q1_oueme_{bdd_sel_statut.lower()}_{len(bdd_view)}.csv",
+        mime="text/csv",
+    )
 
 
 # ── Footer ──────────────────────────────────────────────────────────────
