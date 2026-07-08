@@ -931,8 +931,8 @@ def _render_lemmes():
             _l1b_mask = _l1b_a5.notna() & _l1b_b2.notna()
             st.caption(f"Population : citoyens avec A5 et B2 renseignés (n = {_l1b_mask.sum()})")
             ct2 = pd.crosstab(_l1b_a5[_l1b_mask], _l1b_b2[_l1b_mask])
-            _contingency_html(ct2, "Type de téléphone × Qui a opéré le terminal",
-                              row_label="Téléphone personnel ?", col_label="Qui a opéré le terminal ?")
+            _contingency_html(ct2, "Téléphone personnel × Qui a opéré le terminal (PC ou tél.)",
+                              row_label="Avez-vous un téléphone personnel ?", col_label="Qui a opéré le terminal (PC ou tél.) ?")
             _chi2_full(ct2, p_collector=l1_pvals,
                        var_row="le type de téléphone (A5)", var_col="le recours à l'intermédiation (B2)")
             l1_labels.append("χ² A5 × B2")
