@@ -461,17 +461,54 @@ def _contingency_html(ct: pd.DataFrame, title: str) -> None:
     ct_display = ct.copy()
     ct_display["Total"] = ct_display.sum(axis=1)
     ct_display.loc["Total"] = ct_display.sum(axis=0)
-    st.markdown(f"**{title}**")
+    st.markdown(f"**{title}** (effectifs observés O)")
     st.dataframe(ct_display, use_container_width=True)
 
 
-def _chi2_result(ct: pd.DataFrame) -> str:
-    """Calcule chi2 et retourne un résumé texte."""
+def _chi2_full(ct: pd.DataFrame, title: str = "") -> None:
+    """Calcule chi2 avec détail complet : fréquences attendues, contribution par cellule."""
     if ct.shape[0] < 2 or ct.shape[1] < 2:
-        return "Tableau insuffisant pour le test"
-    chi2, p, dof, _ = chi2_contingency(ct)
+        _stat_box("Tableau insuffisant pour le test (< 2 lignes ou colonnes)", False)
+        return
+
+    chi2, p, dof, expected = chi2_contingency(ct)
     sig = "significatif" if p < 0.05 else "non significatif"
-    return f"Chi2 = {chi2:.2f}, ddl = {dof}, p = {p:.4f} ({sig})"
+    n = ct.values.sum()
+
+    # Fréquences attendues
+    exp_df = pd.DataFrame(expected, index=ct.index, columns=ct.columns).round(2)
+    exp_df["Total"] = exp_df.sum(axis=1).round(2)
+    exp_df.loc["Total"] = exp_df.sum(axis=0).round(2)
+    with st.expander("Fréquences attendues E et détail du calcul", expanded=False):
+        st.markdown(
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;'
+            'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#0c4a6e;line-height:1.6">'
+            '<strong>Formule :</strong> E<sub>ij</sub> = (Total ligne i × Total colonne j) / N<br>'
+            f'<strong>N</strong> = {n} · <strong>ddl</strong> = (nb lignes − 1) × (nb colonnes − 1) '
+            f'= ({ct.shape[0]} − 1) × ({ct.shape[1]} − 1) = {dof}'
+            '</div>', unsafe_allow_html=True,
+        )
+        st.markdown("**Fréquences attendues E** (sous H0 : indépendance)")
+        st.dataframe(exp_df, use_container_width=True)
+
+        # Contribution par cellule
+        contrib = ((ct.values - expected) ** 2 / expected)
+        contrib_df = pd.DataFrame(contrib, index=ct.index, columns=ct.columns).round(3)
+        st.markdown(
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;'
+            'padding:10px 14px;margin:10px 0;font-size:12px;color:#0c4a6e;line-height:1.6">'
+            '<strong>Formule :</strong> χ² = Σ (O<sub>ij</sub> − E<sub>ij</sub>)² / E<sub>ij</sub>'
+            '</div>', unsafe_allow_html=True,
+        )
+        st.markdown("**Contribution par cellule** (O − E)² / E")
+        st.dataframe(contrib_df, use_container_width=True)
+
+        st.markdown(
+            f"**Somme** = {' + '.join(f'{v:.3f}' for v in contrib.flatten())} = **{chi2:.2f}**"
+        )
+
+    # Résultat
+    _stat_box(f"χ² = {chi2:.2f}, ddl = {dof}, p = {p:.4f} ({sig})", p < 0.05)
 
 
 def _fisher_result(ct: pd.DataFrame) -> str:
@@ -494,6 +531,14 @@ def _stat_box(text: str, significant: bool) -> None:
         f'{text}</div>',
         unsafe_allow_html=True,
     )
+
+
+def _pct_detail(numerator: int, denominator: int, label: str) -> str:
+    """Retourne '73% (89/122) — label'."""
+    if denominator == 0:
+        return f"0% (0/0) — {label}"
+    pct = numerator / denominator * 100
+    return f"**{pct:.0f}%** ({numerator}/{denominator}) — {label}"
 
 
 def _method_box(text: str) -> None:
@@ -590,23 +635,23 @@ def _render_lemmes():
 
         with l1_a:
             st.markdown("##### A7 (littératie) × B2 (qui opère)")
+            st.caption(f"Population : citoyens uniquement (n = {len(_cit)})")
             ct1 = pd.crosstab(
                 _cit["section_a/A7"].map({"yes_easy": "Facile", "yes_hard": "Difficile", "no": "Non"}).fillna("?"),
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct1, "Littératie numérique × Opérateur du terminal")
-            res1 = _chi2_result(ct1)
-            _stat_box(res1, "significatif" in res1 and "non" not in res1)
+            _chi2_full(ct1)
 
         with l1_b:
             st.markdown("##### A5 (téléphone) × B2 (qui opère)")
+            st.caption(f"Population : citoyens uniquement (n = {len(_cit)})")
             ct2 = pd.crosstab(
                 _cit["section_a/A5"].map({"smartphone": "Smartphone", "basic": "Basique", "none": "Aucun"}).fillna("?"),
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct2, "Type de téléphone × Opérateur du terminal")
-            res2 = _chi2_result(ct2)
-            _stat_box(res2, "significatif" in res2 and "non" not in res2)
+            _chi2_full(ct2)
 
         st.markdown("---")
         st.markdown("##### Comparaison des deux facettes de C1")
@@ -622,7 +667,8 @@ def _render_lemmes():
         if len(_intermedies):
             b7_df = _intermedies["section_b/B7"].map(b7_map).fillna("?").value_counts().reset_index()
             b7_df.columns = ["Motif", "Effectif"]
-            b7_df["%"] = (b7_df["Effectif"] / b7_df["Effectif"].sum() * 100).round(1)
+            b7_total = b7_df["Effectif"].sum()
+            b7_df["% = Effectif / N"] = b7_df["Effectif"].apply(lambda x: f"{x}/{b7_total} = {x / b7_total * 100:.1f}%")
             st.dataframe(b7_df, hide_index=True, use_container_width=True)
 
         _bias_box(
@@ -677,7 +723,7 @@ def _render_lemmes():
 
         with l2_a:
             st.markdown("##### B3 (partage MDP) × B6 (présence physique)")
-            st.caption("La présence du citoyen protège-t-elle le consentement ?")
+            st.caption(f"Population : citoyens intermédiés (n = {len(_intermedies)})")
             if len(_intermedies):
                 b3_map = {"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"}
                 b6_map = {"yes_all": "Présent tout le temps", "yes_partial": "Présent partiellement", "no": "Absent"}
@@ -686,15 +732,20 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct3, "Présence physique × Partage de mot de passe")
-                res3 = _chi2_result(ct3)
-                _stat_box(res3, "significatif" in res3 and "non" not in res3)
+                _chi2_full(ct3)
 
                 st.markdown("**Taux de partage MDP par niveau de présence**")
+                st.markdown(
+                    '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                    'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                    'Formule : taux = nb(B3 = oui) / nb(répondants dans ce niveau de B6) × 100'
+                    '</div>', unsafe_allow_html=True,
+                )
                 for pres, label in b6_map.items():
                     sub = _intermedies[_intermedies["section_b/B6"] == pres]
                     if len(sub):
-                        pct = (sub["section_b/B3"] == "yes").sum() / len(sub) * 100
-                        st.markdown(f"- {label} : **{pct:.0f}%** (n={len(sub)})")
+                        num = (sub["section_b/B3"] == "yes").sum()
+                        st.markdown(f"- {label} : {_pct_detail(num, len(sub), '')}")
 
         with l2_b:
             st.markdown("##### Convergence citoyens / intermédiaires")
@@ -704,13 +755,23 @@ def _render_lemmes():
             int_pwd = (_int["section_b/B3_int"] == "yes").sum()
             int_total = len(_int[_int["section_b/B3_int"].isin(["yes", "no"])])
 
+            st.markdown(
+                '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                'Formule : % = nb(B3/B3_int = oui) / nb(B3/B3_int ∈ {oui, non}) × 100<br>'
+                'Exclusion : « pas de MDP » est retiré du dénominateur (services sans compte)'
+                '</div>', unsafe_allow_html=True,
+            )
+
             conv_df = pd.DataFrame({
                 "Source": ["Citoyens intermédiés", "Intermédiaires"],
-                "Partage MDP": [cit_pwd, int_pwd],
-                "Total (avec MDP)": [cit_total, int_total],
-                "%": [cit_pwd / cit_total * 100 if cit_total else 0, int_pwd / int_total * 100 if int_total else 0],
+                "Partage MDP (num.)": [cit_pwd, int_pwd],
+                "Total avec MDP (dén.)": [cit_total, int_total],
+                "Calcul": [
+                    f"{cit_pwd}/{cit_total} = {cit_pwd / cit_total * 100:.1f}%" if cit_total else "—",
+                    f"{int_pwd}/{int_total} = {int_pwd / int_total * 100:.1f}%" if int_total else "—",
+                ],
             })
-            conv_df["%"] = conv_df["%"].round(1)
             st.dataframe(conv_df, hide_index=True, use_container_width=True)
 
             st.markdown("##### B3 (partage MDP) × A7 (littératie)")
@@ -722,8 +783,7 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct4, "Littératie × Partage MDP")
-                res4 = _chi2_result(ct4)
-                _stat_box(res4, "significatif" in res4 and "non" not in res4)
+                _chi2_full(ct4)
 
         _bias_box(
             '<strong>Désirabilité sociale</strong> : le partage de MDP pourrait être sous-déclaré si '
@@ -778,14 +838,13 @@ def _render_lemmes():
 
         with l3_a:
             st.markdown("##### B3 (partage MDP) × C5q (connaissance d'incidents)")
-            st.caption("Ceux qui partagent signalent-ils plus d'incidents ?")
+            st.caption(f"Population : citoyens intermédiés (n = {len(_intermedies)})")
             if len(_intermedies):
                 b3_bin = _intermedies["section_b/B3"].map({"yes": "Partage MDP", "no": "Ne partage pas", "no_password": "Pas de MDP"}).fillna("?")
                 c5_bin = _intermedies["section_c/C5q"].map({"yes": "Incidents connus", "no": "Aucun incident"}).fillna("?")
                 ct5 = pd.crosstab(b3_bin, c5_bin)
                 _contingency_html(ct5, "Partage MDP × Connaissance d'incidents")
-                res5 = _chi2_result(ct5)
-                _stat_box(res5, "significatif" in res5 and "non" not in res5)
+                _chi2_full(ct5)
 
             st.markdown("##### B9 (multi-services) × B3 (partage MDP)")
             st.caption("Amplification once-only : le secret ouvre plusieurs services ?")
@@ -796,14 +855,22 @@ def _render_lemmes():
                     _intermedies["section_b/B9"].map(b9_map).fillna("?"),
                 )
                 _contingency_html(ct6, "Partage MDP × Accès multi-services")
-                res6 = _chi2_result(ct6)
-                _stat_box(res6, "significatif" in res6 and "non" not in res6)
+                _chi2_full(ct6)
 
         with l3_b:
             st.markdown("##### Types d'incidents rapportés (C6q)")
             st.caption("Correspondance avec les violations prédites par le lemme")
             c6_pop = df_ok[df_ok["section_c/C6q"].notna() & (df_ok["section_c/C6q"] != "")]
             if len(c6_pop):
+                st.markdown(
+                    '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                    'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                    'C6q est multi-réponses (valeurs séparées par des espaces). '
+                    'Chaque mention est comptée indépendamment.<br>'
+                    f'Répondants ayant renseigné C6q : n = {len(c6_pop)}. '
+                    'Le total des mentions peut dépasser n (multi-réponses).'
+                    '</div>', unsafe_allow_html=True,
+                )
                 c6_labels = {
                     "password": "Réutilisation MDP (→ P1)",
                     "copy": "Copie de documents (→ P3)",
@@ -816,23 +883,30 @@ def _render_lemmes():
                         all_types.append(t)
                 c6_s = pd.Series(all_types).map(c6_labels).fillna("Autre")
                 c6_df = c6_s.value_counts().reset_index()
-                c6_df.columns = ["Type d'incident", "Effectif"]
-                c6_df["%"] = (c6_df["Effectif"] / c6_df["Effectif"].sum() * 100).round(1)
+                c6_df.columns = ["Type d'incident", "Mentions"]
+                c6_total = c6_df["Mentions"].sum()
+                c6_df["% mentions"] = c6_df["Mentions"].apply(lambda x: f"{x}/{c6_total} = {x / c6_total * 100:.1f}%")
                 st.dataframe(c6_df, hide_index=True, use_container_width=True)
 
             st.markdown("##### Amplification côté intermédiaires")
-            st.caption("B9_int : accès multi-services déclaré par les intermédiaires")
+            st.caption(f"B9_int : accès multi-services (n intermédiaires = {len(_int)})")
             if len(_int):
                 b9i = _int["section_b/B9_int"].map(b9_map).fillna("?").value_counts().reset_index()
                 b9i.columns = ["Accès multi-services", "Effectif"]
-                b9i["%"] = (b9i["Effectif"] / b9i["Effectif"].sum() * 100).round(1)
+                b9i_total = b9i["Effectif"].sum()
+                b9i["% = Effectif / N"] = b9i["Effectif"].apply(lambda x: f"{x}/{b9i_total} = {x / b9i_total * 100:.1f}%")
                 st.dataframe(b9i, hide_index=True, use_container_width=True)
 
-                pct_cit = (_intermedies["section_b/B9"] == "multiple").sum() / len(_intermedies) * 100 if len(_intermedies) else 0
-                pct_int = (_int["section_b/B9_int"] == "multiple").sum() / len(_int) * 100 if len(_int) else 0
+                num_cit = (_intermedies["section_b/B9"] == "multiple").sum()
+                den_cit = len(_intermedies) if len(_intermedies) else 1
+                num_int = (_int["section_b/B9_int"] == "multiple").sum()
+                den_int = len(_int) if len(_int) else 1
+                pct_cit = num_cit / den_cit * 100
+                pct_int = num_int / den_int * 100
                 if pct_int > pct_cit:
                     _stat_box(
-                        f"Asymétrie : {pct_int:.0f}% côté intermédiaires vs {pct_cit:.0f}% côté citoyens. "
+                        f"Asymétrie : intermédiaires {num_int}/{den_int} = {pct_int:.0f}% vs "
+                        f"citoyens {num_cit}/{den_cit} = {pct_cit:.0f}%. "
                         f"Les citoyens sous-estiment l'ampleur de l'accès effectué en leur nom.",
                         True,
                     )
@@ -880,24 +954,29 @@ def _render_lemmes():
             'authentificateur matériel.'
         )
 
-        st.markdown("##### Parc de terminaux (A5) — faisabilité FIDO2")
+        n_total = len(df_ok)
+        st.markdown(f"##### Parc de terminaux (A5) — faisabilité FIDO2")
+        st.caption(f"Population : tous répondants exploitables (n = {n_total})")
         a5_map = {"smartphone": "Smartphone", "basic": "Téléphone basique", "none": "Aucun téléphone"}
         a5_df = df_ok["section_a/A5"].map(a5_map).fillna("?").value_counts().reset_index()
         a5_df.columns = ["Type de terminal", "Effectif"]
-        a5_df["%"] = (a5_df["Effectif"] / a5_df["Effectif"].sum() * 100).round(1)
+        a5_df["% = Effectif / N"] = a5_df["Effectif"].apply(lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}%")
         st.dataframe(a5_df, hide_index=True, use_container_width=True)
 
         st.markdown("##### Littératie numérique (A7) — capacité d'usage")
         a7_map = {"yes_easy": "Utilise internet facilement", "yes_hard": "Utilise avec difficulté", "no": "N'utilise pas internet"}
         a7_df = df_ok["section_a/A7"].map(a7_map).fillna("?").value_counts().reset_index()
         a7_df.columns = ["Littératie", "Effectif"]
-        a7_df["%"] = (a7_df["Effectif"] / a7_df["Effectif"].sum() * 100).round(1)
+        a7_df["% = Effectif / N"] = a7_df["Effectif"].apply(lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}%")
         st.dataframe(a7_df, hide_index=True, use_container_width=True)
 
-        pct_no_smart = df_ok[df_ok["section_a/A5"].isin(["basic", "none"])].shape[0] / len(df_ok) * 100
-        pct_no_skill = df_ok[df_ok["section_a/A7"].isin(["yes_hard", "no"])].shape[0] / len(df_ok) * 100
+        n_no_smart = df_ok[df_ok["section_a/A5"].isin(["basic", "none"])].shape[0]
+        n_no_skill = df_ok[df_ok["section_a/A7"].isin(["yes_hard", "no"])].shape[0]
+        pct_no_smart = n_no_smart / n_total * 100
+        pct_no_skill = n_no_skill / n_total * 100
         _stat_box(
-            f"{pct_no_smart:.0f}% n'ont pas de smartphone, {pct_no_skill:.0f}% ne maîtrisent pas internet. "
+            f"Sans smartphone : {n_no_smart}/{n_total} = {pct_no_smart:.0f}%. "
+            f"Ne maîtrisent pas internet : {n_no_skill}/{n_total} = {pct_no_skill:.0f}%. "
             f"FIDO2 satisfait P2 mais son déploiement suppose un terminal et une compétence "
             f"que {max(pct_no_smart, pct_no_skill):.0f}% des répondants n'ont pas.",
             False,
@@ -957,7 +1036,7 @@ def _render_lemmes():
 
         with l5_a:
             st.markdown("##### B4 (destinataire) × B6 (présence physique)")
-            st.caption("La présence corrige-t-elle la livraison ?")
+            st.caption(f"Population : citoyens intermédiés (n = {len(_intermedies)})")
             if len(_intermedies):
                 b4_map = {"me": "Citoyen directement", "handed": "Via intermédiaire", "kept": "Gardé par I", "unknown": "Ne sait pas"}
                 b6_map = {"yes_all": "Présent tout le temps", "yes_partial": "Partiellement", "no": "Absent"}
@@ -966,15 +1045,20 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct7, "Présence × Destinataire du document")
-                res7 = _chi2_result(ct7)
-                _stat_box(res7, "significatif" in res7 and "non" not in res7)
+                _chi2_full(ct7)
 
                 st.markdown("**Taux de livraison via I par niveau de présence**")
+                st.markdown(
+                    '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                    'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                    'Formule : taux = nb(B4 ∈ {handed, kept, unknown}) / nb(répondants dans ce niveau de B6) × 100'
+                    '</div>', unsafe_allow_html=True,
+                )
                 for pres, label in b6_map.items():
                     sub = _intermedies[_intermedies["section_b/B6"] == pres]
                     if len(sub):
-                        pct = sub["section_b/B4"].isin(["handed", "kept", "unknown"]).sum() / len(sub) * 100
-                        st.markdown(f"- {label} : **{pct:.0f}%** via I (n={len(sub)})")
+                        num = sub["section_b/B4"].isin(["handed", "kept", "unknown"]).sum()
+                        st.markdown(f"- {label} : {_pct_detail(num, len(sub), 'via I')}")
 
         with l5_b:
             st.markdown("##### B4 (destinataire) × A7 (littératie)")
@@ -986,8 +1070,7 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct8, "Littératie × Destinataire du document")
-                res8 = _chi2_result(ct8)
-                _stat_box(res8, "significatif" in res8 and "non" not in res8)
+                _chi2_full(ct8)
 
             st.markdown("##### C4q (attente livraison exclusive) × rôle")
             st.caption("Mann-Whitney : citoyens vs intermédiaires")
@@ -995,23 +1078,43 @@ def _render_lemmes():
             c4_int = pd.to_numeric(_int["section_c/C4q"], errors="coerce").dropna()
             if len(c4_cit) > 1 and len(c4_int) > 1:
                 u_stat, p_val = mannwhitneyu(c4_cit, c4_int, alternative="two-sided")
+                n1, n2 = len(c4_cit), len(c4_int)
+                st.markdown(
+                    '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                    'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                    'Test de Mann-Whitney U (bilatéral, variable ordinale)<br>'
+                    f'n₁ (citoyens intermédiés) = {n1}, n₂ (intermédiaires) = {n2}<br>'
+                    f'Médiane citoyens = {c4_cit.median():.0f}, Médiane intermédiaires = {c4_int.median():.0f}<br>'
+                    f'Moyenne (indicative) : citoyens = {c4_cit.mean():.2f}, intermédiaires = {c4_int.mean():.2f}<br>'
+                    'H0 : les distributions de C4q sont identiques entre les deux groupes'
+                    '</div>', unsafe_allow_html=True,
+                )
+                sig = "significatif" if p_val < 0.05 else "non significatif"
                 _stat_box(
-                    f"C4q citoyens intermédiés : M = {c4_cit.mean():.2f} (n={len(c4_cit)}) · "
-                    f"Intermédiaires : M = {c4_int.mean():.2f} (n={len(c4_int)}) · "
-                    f"U = {u_stat:.0f}, p = {p_val:.4f}",
+                    f"U = {u_stat:.0f}, p = {p_val:.4f} ({sig})",
                     p_val < 0.05,
                 )
 
         st.markdown("---")
         st.markdown("##### B4 par commune — le gradient territorial")
+        st.markdown(
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+            'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+            'Formule : Via I (%) = nb(B4 ∈ {handed, kept, unknown}) / n intermédiés × 100, par commune'
+            '</div>', unsafe_allow_html=True,
+        )
         if len(_intermedies):
             commune_b4 = _intermedies.groupby("metadata_terrain/commune").apply(
                 lambda g: pd.Series({
-                    "n": len(g),
+                    "n intermédiés": len(g),
+                    "nb via I": g["section_b/B4"].isin(["handed", "kept", "unknown"]).sum(),
                     "Via I (%)": g["section_b/B4"].isin(["handed", "kept", "unknown"]).sum() / len(g) * 100 if len(g) else 0,
                 })
             ).reset_index()
-            commune_b4.columns = ["Commune", "n intermédiés", "Via I (%)"]
+            commune_b4.columns = ["Commune", "n intermédiés", "nb via I", "Via I (%)"]
+            commune_b4["n intermédiés"] = commune_b4["n intermédiés"].astype(int)
+            commune_b4["nb via I"] = commune_b4["nb via I"].astype(int)
+            commune_b4["Calcul"] = commune_b4.apply(lambda r: f"{int(r['nb via I'])}/{int(r['n intermédiés'])} = {r['Via I (%)']:.1f}%", axis=1)
             commune_b4["Via I (%)"] = commune_b4["Via I (%)"].round(1)
             commune_b4 = commune_b4.sort_values("Via I (%)", ascending=False)
             st.dataframe(commune_b4, hide_index=True, use_container_width=True)
