@@ -517,7 +517,8 @@ def _bias_box(text: str) -> None:
     )
 
 
-with tab_lemmes:
+@st.fragment
+def _render_lemmes():
     lemme_choice = st.selectbox("Sélectionner un lemme", [
         "L1 — Observabilité du terminal (C1∧C3 → I contrôle T)",
         "L2 — Indistinguabilité du consentement (P1)",
@@ -1034,6 +1035,10 @@ with tab_lemmes:
             '(Aguégués, Bonou). Les pourcentages par commune sont instables pour n < 30. '
             'Le gradient territorial est illustratif, pas confirmatoire.'
         )
+
+
+with tab_lemmes:
+    _render_lemmes()
 
 
 # ── Tab Base de données ──────────────────────────────────────────────
