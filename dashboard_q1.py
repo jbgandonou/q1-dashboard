@@ -479,7 +479,8 @@ def _contingency_html(ct: pd.DataFrame, title: str) -> None:
     st.dataframe(ct_display, use_container_width=True)
 
 
-def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None) -> None:
+def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None,
+               var_row: str = "", var_col: str = "") -> None:
     """Calcule chi2 avec détail complet : fréquences attendues, V de Cramér, contribution par cellule."""
     if ct.shape[0] < 2 or ct.shape[1] < 2:
         _stat_box("Tableau insuffisant pour le test (< 2 lignes ou colonnes)", False)
@@ -549,19 +550,24 @@ def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None) -> None:
     )
 
     # Conclusion interprétative
+    ctx = f" entre {var_row} et {var_col}" if var_row and var_col else ""
     if p < 0.05:
         if cramer_v >= 0.3:
-            concl = (f"L'association est statistiquement significative <strong>et</strong> substantielle "
+            concl = (f"L'association{ctx} est statistiquement significative <strong>et</strong> substantielle "
                      f"(V = {cramer_v:.3f}). Ce résultat est robuste : il ne dépend pas de la taille de l'échantillon.")
         elif cramer_v >= 0.1:
-            concl = (f"L'association est significative mais d'ampleur modeste (V = {cramer_v:.3f}). "
-                     f"L'effet existe mais reste modéré — il ne suffit pas à lui seul à expliquer le phénomène.")
+            concl = (f"L'association{ctx} est significative mais d'ampleur modeste (V = {cramer_v:.3f}). "
+                     f"{var_row if var_row else 'Le facteur'} influence "
+                     f"{var_col if var_col else 'la variable'}, mais cet effet reste modéré "
+                     f"et d'autres facteurs non mesurés contribuent probablement.")
         else:
-            concl = (f"L'association est significative mais <strong>négligeable</strong> en pratique "
+            concl = (f"L'association{ctx} est significative mais <strong>négligeable</strong> en pratique "
                      f"(V = {cramer_v:.3f}). La significativité est probablement un artefact de la taille "
                      f"de l'échantillon (n = {n}). Ce résultat ne devrait pas être utilisé dans l'argumentation.")
     else:
-        concl = ("Pas d'association significative. Les deux variables sont indépendantes dans cet échantillon.")
+        concl = (f"Pas d'association significative{ctx}. "
+                 f"{var_row if var_row else 'La variable ligne'} et "
+                 f"{var_col if var_col else 'la variable colonne'} sont indépendantes dans cet échantillon.")
     st.markdown(
         f'<div style="background:#f5f3ff;border:1px solid #c4b5fd;border-radius:8px;'
         f'padding:10px 14px;margin:4px 0;font-size:12px;color:#5b21b6;line-height:1.5">'
@@ -854,7 +860,8 @@ def _render_lemmes():
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct1, "Littératie numérique × Opérateur du terminal")
-            _chi2_full(ct1, p_collector=l1_pvals)
+            _chi2_full(ct1, p_collector=l1_pvals,
+                       var_row="la littératie numérique (A7)", var_col="le recours à l'intermédiation (B2)")
             l1_labels.append("χ² A7 × B2")
 
         with l1_b:
@@ -865,7 +872,8 @@ def _render_lemmes():
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct2, "Type de téléphone × Opérateur du terminal")
-            _chi2_full(ct2, p_collector=l1_pvals)
+            _chi2_full(ct2, p_collector=l1_pvals,
+                       var_row="le type de téléphone (A5)", var_col="le recours à l'intermédiation (B2)")
             l1_labels.append("χ² A5 × B2")
 
         st.markdown("---")
@@ -1076,7 +1084,8 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct3, "Présence physique × Partage de mot de passe")
-                _chi2_full(ct3, p_collector=l2_pvals)
+                _chi2_full(ct3, p_collector=l2_pvals,
+                           var_row="la présence physique (B6)", var_col="le partage de mot de passe (B3)")
                 l2_labels.append("χ² B3 × B6")
 
                 st.markdown("**Taux de partage MDP par niveau de présence**")
@@ -1154,7 +1163,8 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct4, "Littératie × Partage MDP")
-                _chi2_full(ct4, p_collector=l2_pvals)
+                _chi2_full(ct4, p_collector=l2_pvals,
+                           var_row="la littératie numérique (A7)", var_col="le partage de mot de passe (B3)")
                 l2_labels.append("χ² B3 × A7")
 
         _fdr_correction_box(l2_pvals, l2_labels)
@@ -1220,7 +1230,8 @@ def _render_lemmes():
                 c5_bin = _intermedies["section_c/C5q"].map({"yes": "Incidents connus", "no": "Aucun incident"}).fillna("?")
                 ct5 = pd.crosstab(b3_bin, c5_bin)
                 _contingency_html(ct5, "Partage MDP × Connaissance d'incidents")
-                _chi2_full(ct5, p_collector=l3_pvals)
+                _chi2_full(ct5, p_collector=l3_pvals,
+                           var_row="le partage de MDP (B3)", var_col="la connaissance d'incidents (C5q)")
                 l3_labels.append("χ² B3 × C5q")
 
             st.markdown("##### B9 (multi-services) × B3 (partage MDP)")
@@ -1232,7 +1243,8 @@ def _render_lemmes():
                     _intermedies["section_b/B9"].map(b9_map).fillna("?"),
                 )
                 _contingency_html(ct6, "Partage MDP × Accès multi-services")
-                _chi2_full(ct6, p_collector=l3_pvals)
+                _chi2_full(ct6, p_collector=l3_pvals,
+                           var_row="le partage de MDP (B3)", var_col="l'accès multi-services (B9)")
                 l3_labels.append("χ² B3 × B9")
 
         with l3_b:
@@ -1433,7 +1445,8 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct7, "Présence × Destinataire du document")
-                _chi2_full(ct7, p_collector=l5_pvals)
+                _chi2_full(ct7, p_collector=l5_pvals,
+                           var_row="la présence physique (B6)", var_col="le destinataire du document (B4)")
                 l5_labels.append("χ² B4 × B6")
 
                 st.markdown("**Taux de livraison via I par niveau de présence**")
@@ -1482,7 +1495,8 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct8, "Littératie × Destinataire du document")
-                _chi2_full(ct8, p_collector=l5_pvals)
+                _chi2_full(ct8, p_collector=l5_pvals,
+                           var_row="la littératie numérique (A7)", var_col="le destinataire du document (B4)")
                 l5_labels.append("χ² B4 × A7")
 
             st.markdown("##### C4q (attente livraison exclusive) × rôle")
