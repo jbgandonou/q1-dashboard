@@ -1126,6 +1126,63 @@ BDD_INTERNAL_COLS = {
     "doublon_de",
 }
 
+BDD_LABELS = {
+    "_id": "ID",
+    "_submission_time": "Date soumission",
+    "start": "Début",
+    "end": "Fin",
+    "consentement": "Consentement",
+    "gps_location": "GPS",
+    "metadata_terrain/commune": "Commune",
+    "metadata_terrain/arrondissement": "Arrondissement",
+    "metadata_terrain/zone": "Zone (urbain/rural)",
+    "metadata_terrain/strate": "Strate",
+    "metadata_terrain/connectivite": "Connectivité",
+    "metadata_terrain/id_enqueteur": "Enquêteur",
+    "metadata_terrain/mode_administration": "Mode administration",
+    "section_a/A1": "A1 — Rôle (citoyen/intermédiaire)",
+    "section_a/A2": "A2 — Tranche d'âge",
+    "section_a/A3": "A3 — Genre",
+    "section_a/A5": "A5 — Type de téléphone",
+    "section_a/A6": "A6 — Niveau d'éducation",
+    "section_a/A7": "A7 — Littératie numérique",
+    "section_b/B1": "B1 — Démarche effectuée",
+    "section_b/B2": "B2 — Qui a opéré le terminal",
+    "section_b/B3": "B3 — A partagé son mot de passe",
+    "section_b/B3_int": "B3 int — Reçoit le mot de passe",
+    "section_b/B4": "B4 — Qui a reçu le document",
+    "section_b/B4_int": "B4 int — Remet le document au citoyen",
+    "section_b/B5": "B5 — Type de service",
+    "section_b/B5bis": "B5bis — Autre service (texte)",
+    "section_b/B6": "B6 — Présence physique du citoyen",
+    "section_b/B6_int": "B6 int — Citoyen présent",
+    "section_b/B7": "B7 — Motif du recours",
+    "section_b/B7bis": "B7bis — Autre motif (texte)",
+    "section_b/B8": "B8 — Problèmes de connexion",
+    "section_b/B9": "B9 — Multi-services dans la session",
+    "section_b/B9_int": "B9 int — Multi-services",
+    "section_c/C1q": "C1q — Confiance envers l'intermédiaire (1-5)",
+    "section_c/C1q_int": "C1q int — Confiance perçue du citoyen (1-5)",
+    "section_c/C2q": "C2q — Inquiétude sécurité données (1-5)",
+    "section_c/C2q_int": "C2q int — Inquiétude sécurité (1-5)",
+    "section_c/C3q": "C3q — Perception de forgeabilité (1-5)",
+    "section_c/C4q": "C4q — Attente livraison exclusive (1-5)",
+    "section_c/C5q": "C5q — Connaissance d'incidents",
+    "section_c/C6q": "C6q — Type d'incidents rapportés",
+    "section_c/C6bis": "C6bis — Détail incidents (texte)",
+    "commune": "Commune",
+    "arrondissement": "Arrondissement",
+    "enqueteur": "Enquêteur",
+    "role": "Rôle",
+    "genre": "Genre",
+    "age": "Âge",
+    "education": "Éducation",
+    "mode": "Mode",
+    "date": "Date",
+    "duration_min": "Durée (min)",
+    "flagged": "Statut",
+}
+
 with tab_bdd:
     st.subheader(f"Base de données complète — {len(df)} soumissions, {len(df.columns)} colonnes")
 
@@ -1156,12 +1213,16 @@ with tab_bdd:
     if "flagged" in bdd_export.columns:
         bdd_export["flagged"] = bdd_export["flagged"].map({True: "Exclue", False: "OK"})
 
-    st.dataframe(bdd_export.sort_values("date", ascending=False) if "date" in bdd_export.columns else bdd_export,
+    rename_map = {c: BDD_LABELS.get(c, c) for c in bdd_export.columns}
+    bdd_display = bdd_export.rename(columns=rename_map)
+
+    sort_col = "Date" if "Date" in bdd_display.columns else bdd_display.columns[0]
+    st.dataframe(bdd_display.sort_values(sort_col, ascending=False),
                  hide_index=True, use_container_width=True, height=700)
 
     st.caption(f"{len(bdd_view)} lignes x {len(all_cols)} colonnes")
 
-    csv = bdd_export.to_csv(index=False).encode("utf-8")
+    csv = bdd_display.to_csv(index=False).encode("utf-8")
     st.download_button(
         label=f"Télécharger CSV ({len(bdd_view)} lignes x {len(all_cols)} colonnes)",
         data=csv,
