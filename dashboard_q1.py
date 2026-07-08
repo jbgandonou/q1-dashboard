@@ -1043,7 +1043,8 @@ with tab_lemmes:
 
 # ── Tab Base de données ──────────────────────────────────────────────
 
-with tab_bdd:
+@st.fragment
+def _render_bdd():
     BDD_INTERNAL_COLS = {
         "__version__", "_attachments", "_geolocation", "_xform_id_string",
         "_submitted_by", "_uuid", "_validation_status", "_status",
@@ -1194,12 +1195,5 @@ with tab_bdd:
     )
 
 
-# ── Footer ──────────────────────────────────────────────────────────────
-
-st.markdown("---")
-st.markdown(
-    '<div style="text-align:center;color:#94a3b8;font-size:11px;padding:8px 0">'
-    'Q1 Ouémé — Thèse J.-B. Gandonou · KoBoToolbox temps réel · Cache 2 min'
-    '</div>',
-    unsafe_allow_html=True,
-)
+with tab_bdd:
+    _render_bdd()
