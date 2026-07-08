@@ -1010,13 +1010,34 @@ def _render_lemmes():
             or_vals = np.exp(model.params)
             ci = np.exp(model.conf_int())
 
+            _pred_labels = {
+                "A5_basic": "Téléphone basique (réf: aucun)",
+                "A5_smartphone": "Possède un smartphone (réf: aucun)",
+                "A7_yes_easy": "Sait utiliser Internet facilement (réf: non)",
+                "A7_yes_hard": "Sait utiliser Internet avec difficulté (réf: non)",
+                "A2_25-34": "Âge 25-34 ans (réf: 18-24)",
+                "A2_35-44": "Âge 35-44 ans (réf: 18-24)",
+                "A2_45-54": "Âge 45-54 ans (réf: 18-24)",
+                "A2_55+": "Âge 55 ans et plus (réf: 18-24)",
+                "A6_primary": "Études primaires (réf: sans instruction)",
+                "A6_secondary": "Études secondaires (réf: sans instruction)",
+                "A6_university": "Études universitaires (réf: sans instruction)",
+                "zone_urbain": "Zone urbaine (réf: rural)",
+                "B5_birth_certificate": "Service : acte de naissance",
+                "B5_criminal_record": "Service : casier judiciaire",
+                "B5_nationality": "Service : certificat de nationalité",
+                "B5_other": "Service : autre",
+                "B5_ravip": "Service : RAVIP (identité)",
+            }
             reg_rows = []
             for i, col in enumerate(dummies.columns):
                 if col == "const":
                     continue
+                raw = col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
+                label = _pred_labels.get(raw, raw)
                 sig_flag = "Oui" if model.pvalues[i] < 0.05 else "Non"
                 reg_rows.append({
-                    "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
+                    "Prédicteur": label,
                     "OR": f"{or_vals[i]:.2f}",
                     "IC 95%": f"[{ci[i, 0]:.2f} – {ci[i, 1]:.2f}]",
                     "p": f"{model.pvalues[i]:.4f}",
@@ -1035,10 +1056,12 @@ def _render_lemmes():
             )
 
             # Conclusion régression
-            sig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
+            sig_preds = [_pred_labels.get(col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
+                                          col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""))
                          for i, col in enumerate(dummies.columns)
                          if col != "const" and model.pvalues[i] < 0.05]
-            nonsig_preds = [col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
+            nonsig_preds = [_pred_labels.get(col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
+                                             col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""))
                             for i, col in enumerate(dummies.columns)
                             if col != "const" and model.pvalues[i] >= 0.05]
 
@@ -1131,7 +1154,8 @@ def _render_lemmes():
                     for j in range(mn_model.params.shape[1]):
                         ref_cat = cats[0]
                         comp_cat = cats[j + 1] if (j + 1) < len(cats) else f"cat_{j+1}"
-                        st.markdown(f"**{comp_cat} vs {ref_cat}**")
+                        _mn_cat_labels = {"self": "Moi-même", "intermediary": "Un intermédiaire", "relative": "Un proche"}
+                        st.markdown(f"**{_mn_cat_labels.get(comp_cat, comp_cat)} vs {_mn_cat_labels.get(ref_cat, ref_cat)}**")
                         mn_rows = []
                         or_j = np.exp(mn_model.params[:, j])
                         ci_j = np.exp(mn_model.conf_int()[j])
@@ -1139,9 +1163,10 @@ def _render_lemmes():
                         for i, col in enumerate(mn_dummies.columns):
                             if col == "const":
                                 continue
+                            raw_mn = col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", "")
                             sig_flag = "Oui" if pv_j[i] < 0.05 else "Non"
                             mn_rows.append({
-                                "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", "").replace("section_b/", ""),
+                                "Prédicteur": _pred_labels.get(raw_mn, raw_mn),
                                 "OR": f"{or_j[i]:.2f}",
                                 "IC 95%": f"[{ci_j[i, 0]:.2f} – {ci_j[i, 1]:.2f}]",
                                 "p": f"{pv_j[i]:.4f}",
