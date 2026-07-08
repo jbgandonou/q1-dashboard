@@ -1170,18 +1170,15 @@ BDD_LABELS = {
     "section_c/C5q": "C5q — Connaissance d'incidents",
     "section_c/C6q": "C6q — Type d'incidents rapportés",
     "section_c/C6bis": "C6bis — Détail incidents (texte)",
-    "commune": "Commune",
-    "arrondissement": "Arrondissement",
-    "enqueteur": "Enquêteur",
-    "role": "Rôle",
-    "genre": "Genre",
-    "age": "Âge",
-    "education": "Éducation",
-    "mode": "Mode",
-    "date": "Date",
     "duration_min": "Durée (min)",
     "flagged": "Statut",
 }
+
+# Colonnes calculées par clean() qui dupliquent les colonnes brutes
+BDD_INTERNAL_COLS.update({
+    "commune", "arrondissement", "enqueteur", "role", "genre",
+    "age", "education", "mode", "date",
+})
 
 with tab_bdd:
     st.subheader(f"Base de données complète — {len(df)} soumissions, {len(df.columns)} colonnes")
