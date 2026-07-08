@@ -10,12 +10,15 @@ Déploiement Streamlit Cloud :
 """
 
 import os
+from math import sqrt
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
 from scipy.stats import chi2_contingency, fisher_exact, mannwhitneyu, kruskal, spearmanr
+from statsmodels.stats.multitest import multipletests
 
 # ── Config ──────────────────────────────────────────────────────────────
 
@@ -456,6 +459,17 @@ page = st.radio("", ["Lemmes", "Base de données"], horizontal=True, label_visib
 
 # ── Tab Lemmes ────────────────────────────────────────────────────────
 
+def _wilson_ci(k: int, n: int, z: float = 1.96) -> tuple:
+    """Intervalle de confiance de Wilson pour une proportion. Retourne (lo, hi) en %."""
+    if n == 0:
+        return (0.0, 0.0)
+    p_hat = k / n
+    denom = 1 + z * z / n
+    centre = (p_hat + z * z / (2 * n)) / denom
+    margin = (z / denom) * sqrt(p_hat * (1 - p_hat) / n + z * z / (4 * n * n))
+    return (max(0, centre - margin) * 100, min(1, centre + margin) * 100)
+
+
 def _contingency_html(ct: pd.DataFrame, title: str) -> None:
     """Affiche un tableau de contingence avec totaux."""
     ct_display = ct.copy()
@@ -465,8 +479,8 @@ def _contingency_html(ct: pd.DataFrame, title: str) -> None:
     st.dataframe(ct_display, use_container_width=True)
 
 
-def _chi2_full(ct: pd.DataFrame, title: str = "") -> None:
-    """Calcule chi2 avec détail complet : fréquences attendues, contribution par cellule."""
+def _chi2_full(ct: pd.DataFrame, p_collector: list | None = None) -> None:
+    """Calcule chi2 avec détail complet : fréquences attendues, V de Cramér, contribution par cellule."""
     if ct.shape[0] < 2 or ct.shape[1] < 2:
         _stat_box("Tableau insuffisant pour le test (< 2 lignes ou colonnes)", False)
         return
@@ -474,6 +488,21 @@ def _chi2_full(ct: pd.DataFrame, title: str = "") -> None:
     chi2, p, dof, expected = chi2_contingency(ct)
     sig = "significatif" if p < 0.05 else "non significatif"
     n = ct.values.sum()
+
+    # V de Cramér
+    k = min(ct.shape[0], ct.shape[1])
+    cramer_v = sqrt(chi2 / (n * (k - 1))) if (n * (k - 1)) > 0 else 0
+    if cramer_v < 0.1:
+        v_interp = "négligeable"
+    elif cramer_v < 0.3:
+        v_interp = "faible à modéré"
+    elif cramer_v < 0.5:
+        v_interp = "modéré à fort"
+    else:
+        v_interp = "fort"
+
+    if p_collector is not None:
+        p_collector.append(p)
 
     # Fréquences attendues
     exp_df = pd.DataFrame(expected, index=ct.index, columns=ct.columns).round(2)
@@ -485,7 +514,9 @@ def _chi2_full(ct: pd.DataFrame, title: str = "") -> None:
             'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#0c4a6e;line-height:1.6">'
             '<strong>Formule :</strong> E<sub>ij</sub> = (Total ligne i × Total colonne j) / N<br>'
             f'<strong>N</strong> = {n} · <strong>ddl</strong> = (nb lignes − 1) × (nb colonnes − 1) '
-            f'= ({ct.shape[0]} − 1) × ({ct.shape[1]} − 1) = {dof}'
+            f'= ({ct.shape[0]} − 1) × ({ct.shape[1]} − 1) = {dof}<br>'
+            f'<strong>V de Cramér :</strong> V = √(χ² / (N × (min(r,c) − 1))) = '
+            f'√({chi2:.2f} / ({n} × {k - 1})) = {cramer_v:.3f} ({v_interp})'
             '</div>', unsafe_allow_html=True,
         )
         st.markdown("**Fréquences attendues E** (sous H0 : indépendance)")
@@ -507,8 +538,11 @@ def _chi2_full(ct: pd.DataFrame, title: str = "") -> None:
             f"**Somme** = {' + '.join(f'{v:.3f}' for v in contrib.flatten())} = **{chi2:.2f}**"
         )
 
-    # Résultat
-    _stat_box(f"χ² = {chi2:.2f}, ddl = {dof}, p = {p:.4f} ({sig})", p < 0.05)
+    # Résultat avec V de Cramér
+    _stat_box(
+        f"χ² = {chi2:.2f}, ddl = {dof}, p = {p:.4f} ({sig}) · V de Cramér = {cramer_v:.3f} ({v_interp})",
+        p < 0.05,
+    )
 
 
 def _fisher_result(ct: pd.DataFrame) -> str:
@@ -534,11 +568,48 @@ def _stat_box(text: str, significant: bool) -> None:
 
 
 def _pct_detail(numerator: int, denominator: int, label: str) -> str:
-    """Retourne '73% (89/122) — label'."""
+    """Retourne '73% [IC 95% : 67-78] (89/122) — label'."""
     if denominator == 0:
         return f"0% (0/0) — {label}"
     pct = numerator / denominator * 100
-    return f"**{pct:.0f}%** ({numerator}/{denominator}) — {label}"
+    lo, hi = _wilson_ci(numerator, denominator)
+    suffix = f" — {label}" if label else ""
+    return f"**{pct:.0f}%** [IC 95% : {lo:.0f}-{hi:.0f}] ({numerator}/{denominator}){suffix}"
+
+
+def _fdr_correction_box(p_values: list, labels: list) -> None:
+    """Affiche la correction Benjamini-Hochberg (FDR) et Bonferroni sur une liste de p-values."""
+    if not p_values:
+        return
+    k = len(p_values)
+    p_arr = np.array(p_values)
+
+    # Bonferroni
+    bonf = np.minimum(p_arr * k, 1.0)
+    # Benjamini-Hochberg
+    _, bh_pvals, _, _ = multipletests(p_arr, alpha=0.05, method="fdr_bh")
+
+    rows = []
+    for i, lab in enumerate(labels):
+        rows.append({
+            "Test": lab,
+            "p brut": f"{p_values[i]:.4f}",
+            f"p Bonferroni (×{k})": f"{bonf[i]:.4f}",
+            "p BH (FDR)": f"{bh_pvals[i]:.4f}",
+            "Significatif (BH)": "Oui" if bh_pvals[i] < 0.05 else "Non",
+        })
+
+    with st.expander("Correction pour tests multiples (Bonferroni / Benjamini-Hochberg)", expanded=False):
+        st.markdown(
+            '<div style="background:#faf5ff;border:1px solid #d8b4fe;border-radius:8px;'
+            'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#581c87;line-height:1.6">'
+            f'<strong>{k} tests</strong> réalisés dans ce lemme. '
+            f'Risque cumulé sans correction : 1 − (1 − 0.05)<sup>{k}</sup> = {1 - (1 - 0.05)**k:.1%}.<br>'
+            '<strong>Bonferroni</strong> : p<sub>corr</sub> = p × k (conservateur, contrôle FWER).<br>'
+            '<strong>Benjamini-Hochberg</strong> : contrôle le FDR à 5% (moins conservateur, recommandé).'
+            '</div>', unsafe_allow_html=True,
+        )
+        st.dataframe(pd.DataFrame(rows), hide_index=True, use_container_width=True)
 
 
 def _method_box(text: str) -> None:
@@ -573,6 +644,60 @@ def _render_lemmes():
     _int = df_ok[df_ok["section_a/A1"] == "intermediary"]
     _intermedies = _cit[_cit["section_b/B2"].isin(["intermediary", "relative"])]
 
+    # ── Pondération post-stratification ──
+    # Population RGPH-4 Ouémé par strate (source: INSAE, RGPH-4, 2013, projection 2024)
+    RGPH4_STRATE = {
+        "urbain": 0.62,   # 62% population Ouémé en zone urbaine
+        "rural": 0.38,    # 38% en zone rurale
+    }
+    with st.expander("Pondération post-stratification (RGPH-4)", expanded=False):
+        st.markdown(
+            '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;'
+            'padding:10px 14px;margin-bottom:10px;font-size:12px;color:#0c4a6e;line-height:1.6">'
+            '<strong>Principe :</strong> l\'échantillon n\'est pas auto-pondéré. Certaines strates '
+            '(urbain/rural) sont sur- ou sous-représentées par rapport à la population réelle (RGPH-4).<br>'
+            '<strong>Formule :</strong> w<sub>s</sub> = (proportion RGPH-4 de la strate s) / '
+            '(proportion observée de la strate s dans l\'échantillon).<br>'
+            'Un poids > 1 signifie que la strate est sous-représentée (chaque répondant « compte » '
+            'pour plus d\'un individu). Un poids < 1 signifie une surreprésentation.<br>'
+            '<strong>DEFF</strong> (design effect) = 1 + CV²(w), où CV = écart-type(w) / moyenne(w). '
+            'DEFF > 2 signale une pondération excessive qui dégrade la précision.'
+            '</div>', unsafe_allow_html=True,
+        )
+
+        zone_col = "metadata_terrain/zone"
+        if zone_col in df_ok.columns:
+            obs_counts = df_ok[zone_col].value_counts()
+            n_total_w = obs_counts.sum()
+            weight_rows = []
+            weights_list = []
+            for strate, pop_prop in RGPH4_STRATE.items():
+                obs_n = obs_counts.get(strate, 0)
+                obs_prop = obs_n / n_total_w if n_total_w else 0
+                w = pop_prop / obs_prop if obs_prop > 0 else 1.0
+                weight_rows.append({
+                    "Strate": strate.capitalize(),
+                    "Population RGPH-4 (%)": f"{pop_prop * 100:.0f}%",
+                    "Échantillon n": obs_n,
+                    "Échantillon (%)": f"{obs_prop * 100:.1f}%",
+                    "Poids w": f"{w:.3f}",
+                    "Calcul": f"{pop_prop:.2f} / {obs_prop:.3f} = {w:.3f}",
+                })
+                weights_list.extend([w] * obs_n)
+            st.dataframe(pd.DataFrame(weight_rows), hide_index=True, use_container_width=True)
+
+            if weights_list:
+                w_arr = np.array(weights_list)
+                cv_w = w_arr.std() / w_arr.mean() if w_arr.mean() > 0 else 0
+                deff = 1 + cv_w ** 2
+                n_eff = n_total_w / deff
+                _stat_box(
+                    f"DEFF = 1 + CV²(w) = 1 + {cv_w:.3f}² = {deff:.3f}. "
+                    f"Taille effective : n_eff = {n_total_w} / {deff:.3f} = {n_eff:.0f} "
+                    f"(perte de {(1 - n_eff / n_total_w) * 100:.0f}% de précision due à la pondération).",
+                    deff > 2.0,
+                )
+
     # Rappel des items du questionnaire utilisés dans les lemmes
     ITEMS_REF = {
         "A5": ("Quel type de téléphone possédez-vous ?", "Smartphone / Téléphone basique / Aucun"),
@@ -602,6 +727,9 @@ def _render_lemmes():
 
     # ── LEMME 1 ──────────────────────────────────────────────────────
     if "L1" in lemme_choice:
+        l1_pvals = []
+        l1_labels = []
+
         st.markdown("### Lemme 1 — Observabilité du terminal")
         st.markdown(
             '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
@@ -622,7 +750,8 @@ def _render_lemmes():
             'Deux tableaux de contingence croisent la variable dépendante B2 (qui a opéré le terminal : '
             'soi-même / intermédiaire / proche) avec deux opérationnalisations de C1 : '
             'A7 (littératie numérique, 3 niveaux) et A5 (type de téléphone, 3 niveaux).<br><br>'
-            '<strong>Test appliqué :</strong> chi-deux de Pearson. Approprié car les deux variables sont '
+            '<strong>Test appliqué :</strong> chi-deux de Pearson + V de Cramér (taille d\'effet). '
+            'Approprié car les deux variables sont '
             'catégorielles nominales avec effectifs attendus suffisants (> 5 par cellule dans la majorité des cas). '
             'Le chi-deux mesure l\'association, pas la causalité.<br><br>'
             '<strong>Population :</strong> citoyens uniquement (n ci-dessous). Les intermédiaires sont exclus '
@@ -641,7 +770,8 @@ def _render_lemmes():
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct1, "Littératie numérique × Opérateur du terminal")
-            _chi2_full(ct1)
+            _chi2_full(ct1, p_collector=l1_pvals)
+            l1_labels.append("χ² A7 × B2")
 
         with l1_b:
             st.markdown("##### A5 (téléphone) × B2 (qui opère)")
@@ -651,25 +781,97 @@ def _render_lemmes():
                 _cit["section_b/B2"].map({"self": "Soi-même", "intermediary": "Intermédiaire", "relative": "Proche"}).fillna("?"),
             )
             _contingency_html(ct2, "Type de téléphone × Opérateur du terminal")
-            _chi2_full(ct2)
+            _chi2_full(ct2, p_collector=l1_pvals)
+            l1_labels.append("χ² A5 × B2")
 
         st.markdown("---")
         st.markdown("##### Comparaison des deux facettes de C1")
         st.markdown(
             "La comparaison des deux chi-deux indique laquelle des deux facettes de C1 "
             "(possession matérielle vs compétence d'usage) est la plus associée au recours à l'intermédiation. "
-            "Un chi-deux plus élevé signifie une association plus forte, pas une causalité plus forte."
+            "Le V de Cramér permet une comparaison directe : il est normalisé entre 0 et 1, "
+            "indépendamment de n et du nombre de modalités."
         )
 
-        # Motif de recours B7
+        # Motif de recours B7 avec IC Wilson
         st.markdown("##### B7 — Motif du recours (citoyens intermédiés)")
         b7_map = {"convenience": "Commodité", "no_device": "Pas de terminal", "no_skill": "Manque de compétence", "other": "Autre"}
         if len(_intermedies):
             b7_df = _intermedies["section_b/B7"].map(b7_map).fillna("?").value_counts().reset_index()
             b7_df.columns = ["Motif", "Effectif"]
             b7_total = b7_df["Effectif"].sum()
-            b7_df["% = Effectif / N"] = b7_df["Effectif"].apply(lambda x: f"{x}/{b7_total} = {x / b7_total * 100:.1f}%")
+            b7_df["% [IC 95% Wilson]"] = b7_df["Effectif"].apply(
+                lambda x: f"{x}/{b7_total} = {x / b7_total * 100:.1f}% [{_wilson_ci(x, b7_total)[0]:.0f}-{_wilson_ci(x, b7_total)[1]:.0f}]"
+            )
             st.dataframe(b7_df, hide_index=True, use_container_width=True)
+
+        # ── Régression logistique multivariée ──
+        st.markdown("---")
+        st.markdown("##### Régression logistique — effets nets sur le recours à l'intermédiation")
+        _method_box(
+            '<strong>Objectif :</strong> isoler l\'effet net de chaque prédicteur sur la probabilité '
+            'd\'être intermédiée (B2 ≠ soi-même), en contrôlant les confondeurs.<br>'
+            '<strong>Variable dépendante :</strong> B2 binaire (0 = soi-même, 1 = intermédiaire ou proche).<br>'
+            '<strong>Prédicteurs :</strong> A5 (terminal), A7 (littératie), A2 (âge), A6 (éducation), '
+            'zone (urbain/rural). Chaque variable catégorielle est encodée en dummies, la modalité '
+            'de référence est la plus fréquente.<br>'
+            '<strong>Interprétation :</strong> un OR > 1 signifie que la modalité augmente les chances '
+            'd\'être intermédiée par rapport à la référence. L\'IC à 95% exclut 1 → effet significatif.'
+        )
+
+        try:
+            from statsmodels.api import Logit
+
+            reg_df = _cit[["section_a/A5", "section_a/A7", "section_a/A2",
+                           "section_a/A6", "metadata_terrain/zone", "section_b/B2"]].copy()
+            reg_df = reg_df.dropna()
+            reg_df["y"] = (reg_df["section_b/B2"] != "self").astype(int)
+
+            dummies = pd.get_dummies(
+                reg_df[["section_a/A5", "section_a/A7", "section_a/A2",
+                         "section_a/A6", "metadata_terrain/zone"]],
+                drop_first=True, dtype=float,
+            )
+            dummies.insert(0, "const", 1.0)
+
+            model = Logit(reg_df["y"].values, dummies.values).fit(disp=0)
+            or_vals = np.exp(model.params)
+            ci = np.exp(model.conf_int())
+
+            reg_rows = []
+            for i, col in enumerate(dummies.columns):
+                if col == "const":
+                    continue
+                sig_flag = "Oui" if model.pvalues[i] < 0.05 else "Non"
+                reg_rows.append({
+                    "Prédicteur": col.replace("section_a/", "").replace("metadata_terrain/", ""),
+                    "OR": f"{or_vals[i]:.2f}",
+                    "IC 95%": f"[{ci[i, 0]:.2f} – {ci[i, 1]:.2f}]",
+                    "p": f"{model.pvalues[i]:.4f}",
+                    "Significatif": sig_flag,
+                })
+            st.dataframe(pd.DataFrame(reg_rows), hide_index=True, use_container_width=True)
+
+            st.markdown(
+                '<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:6px;'
+                'padding:6px 10px;margin-bottom:8px;font-size:11px;color:#0c4a6e">'
+                f'Pseudo-R² (McFadden) = {model.prsquared:.3f} · '
+                f'AIC = {model.aic:.1f} · '
+                f'n = {int(model.nobs)} · '
+                f'Log-likelihood = {model.llf:.1f}'
+                '</div>', unsafe_allow_html=True,
+            )
+
+            for i, col in enumerate(dummies.columns):
+                if col != "const" and model.pvalues[i] < 0.05:
+                    l1_pvals.append(model.pvalues[i])
+                    l1_labels.append(f"Logit {col.replace('section_a/', '').replace('metadata_terrain/', '')}")
+
+        except Exception as e:
+            st.warning(f"Régression logistique non disponible : {e}")
+
+        # Correction FDR
+        _fdr_correction_box(l1_pvals, l1_labels)
 
         _bias_box(
             '<strong>Échantillonnage par convenance stratifiée</strong> : les résultats ne sont pas '
@@ -679,12 +881,15 @@ def _render_lemmes():
             'Les répondants peuvent surestimer la « commodité » et sous-déclarer le manque de compétence '
             'par fierté. Le taux réel de contrainte pourrait être supérieur au taux déclaré.<br>'
             '<strong>Confondeur potentiel</strong> : A5 et A7 sont corrélés (ceux sans smartphone ont souvent '
-            'une faible littératie). Les chi-deux mesurent des associations marginales, pas des effets nets. '
-            'Une régression logistique multivariée serait nécessaire pour isoler les effets.'
+            'une faible littératie). La régression logistique ci-dessus isole les effets nets. '
+            'Si un prédicteur perd sa significativité après ajustement, son effet marginal (chi-deux) '
+            'était dû à la corrélation avec un autre facteur.'
         )
 
     # ── LEMME 2 ──────────────────────────────────────────────────────
     elif "L2" in lemme_choice:
+        l2_pvals = []
+        l2_labels = []
         st.markdown("### Lemme 2 — Indistinguabilité du consentement (P1)")
         st.markdown(
             '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
@@ -732,7 +937,8 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct3, "Présence physique × Partage de mot de passe")
-                _chi2_full(ct3)
+                _chi2_full(ct3, p_collector=l2_pvals)
+                l2_labels.append("χ² B3 × B6")
 
                 st.markdown("**Taux de partage MDP par niveau de présence**")
                 st.markdown(
@@ -763,6 +969,8 @@ def _render_lemmes():
                 '</div>', unsafe_allow_html=True,
             )
 
+            cit_ci = _wilson_ci(cit_pwd, cit_total) if cit_total else (0, 0)
+            int_ci = _wilson_ci(int_pwd, int_total) if int_total else (0, 0)
             conv_df = pd.DataFrame({
                 "Source": ["Citoyens intermédiés", "Intermédiaires"],
                 "Partage MDP (num.)": [cit_pwd, int_pwd],
@@ -770,6 +978,10 @@ def _render_lemmes():
                 "Calcul": [
                     f"{cit_pwd}/{cit_total} = {cit_pwd / cit_total * 100:.1f}%" if cit_total else "—",
                     f"{int_pwd}/{int_total} = {int_pwd / int_total * 100:.1f}%" if int_total else "—",
+                ],
+                "IC 95% Wilson": [
+                    f"[{cit_ci[0]:.0f}-{cit_ci[1]:.0f}%]" if cit_total else "—",
+                    f"[{int_ci[0]:.0f}-{int_ci[1]:.0f}%]" if int_total else "—",
                 ],
             })
             st.dataframe(conv_df, hide_index=True, use_container_width=True)
@@ -783,7 +995,10 @@ def _render_lemmes():
                     _intermedies["section_b/B3"].map(b3_map).fillna("?"),
                 )
                 _contingency_html(ct4, "Littératie × Partage MDP")
-                _chi2_full(ct4)
+                _chi2_full(ct4, p_collector=l2_pvals)
+                l2_labels.append("χ² B3 × A7")
+
+        _fdr_correction_box(l2_pvals, l2_labels)
 
         _bias_box(
             '<strong>Désirabilité sociale</strong> : le partage de MDP pourrait être sous-déclaré si '
@@ -800,6 +1015,8 @@ def _render_lemmes():
 
     # ── LEMME 3 ──────────────────────────────────────────────────────
     elif "L3" in lemme_choice:
+        l3_pvals = []
+        l3_labels = []
         st.markdown("### Lemme 3 — Accessibilité du secret (P2)")
         st.markdown(
             '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
@@ -844,7 +1061,8 @@ def _render_lemmes():
                 c5_bin = _intermedies["section_c/C5q"].map({"yes": "Incidents connus", "no": "Aucun incident"}).fillna("?")
                 ct5 = pd.crosstab(b3_bin, c5_bin)
                 _contingency_html(ct5, "Partage MDP × Connaissance d'incidents")
-                _chi2_full(ct5)
+                _chi2_full(ct5, p_collector=l3_pvals)
+                l3_labels.append("χ² B3 × C5q")
 
             st.markdown("##### B9 (multi-services) × B3 (partage MDP)")
             st.caption("Amplification once-only : le secret ouvre plusieurs services ?")
@@ -855,7 +1073,8 @@ def _render_lemmes():
                     _intermedies["section_b/B9"].map(b9_map).fillna("?"),
                 )
                 _contingency_html(ct6, "Partage MDP × Accès multi-services")
-                _chi2_full(ct6)
+                _chi2_full(ct6, p_collector=l3_pvals)
+                l3_labels.append("χ² B3 × B9")
 
         with l3_b:
             st.markdown("##### Types d'incidents rapportés (C6q)")
@@ -911,6 +1130,8 @@ def _render_lemmes():
                         True,
                     )
 
+        _fdr_correction_box(l3_pvals, l3_labels)
+
         _bias_box(
             '<strong>Causalité non établie</strong> : le croisement B3 × C5q montre une association, '
             'pas une causalité. C5q mesure « avez-vous entendu parler d\'un incident » (ouï-dire), '
@@ -960,23 +1181,29 @@ def _render_lemmes():
         a5_map = {"smartphone": "Smartphone", "basic": "Téléphone basique", "none": "Aucun téléphone"}
         a5_df = df_ok["section_a/A5"].map(a5_map).fillna("?").value_counts().reset_index()
         a5_df.columns = ["Type de terminal", "Effectif"]
-        a5_df["% = Effectif / N"] = a5_df["Effectif"].apply(lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}%")
+        a5_df["% [IC 95%]"] = a5_df["Effectif"].apply(
+            lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}% [{_wilson_ci(x, n_total)[0]:.0f}-{_wilson_ci(x, n_total)[1]:.0f}]"
+        )
         st.dataframe(a5_df, hide_index=True, use_container_width=True)
 
         st.markdown("##### Littératie numérique (A7) — capacité d'usage")
         a7_map = {"yes_easy": "Utilise internet facilement", "yes_hard": "Utilise avec difficulté", "no": "N'utilise pas internet"}
         a7_df = df_ok["section_a/A7"].map(a7_map).fillna("?").value_counts().reset_index()
         a7_df.columns = ["Littératie", "Effectif"]
-        a7_df["% = Effectif / N"] = a7_df["Effectif"].apply(lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}%")
+        a7_df["% [IC 95%]"] = a7_df["Effectif"].apply(
+            lambda x: f"{x}/{n_total} = {x / n_total * 100:.1f}% [{_wilson_ci(x, n_total)[0]:.0f}-{_wilson_ci(x, n_total)[1]:.0f}]"
+        )
         st.dataframe(a7_df, hide_index=True, use_container_width=True)
 
         n_no_smart = df_ok[df_ok["section_a/A5"].isin(["basic", "none"])].shape[0]
         n_no_skill = df_ok[df_ok["section_a/A7"].isin(["yes_hard", "no"])].shape[0]
         pct_no_smart = n_no_smart / n_total * 100
         pct_no_skill = n_no_skill / n_total * 100
+        ci_smart = _wilson_ci(n_no_smart, n_total)
+        ci_skill = _wilson_ci(n_no_skill, n_total)
         _stat_box(
-            f"Sans smartphone : {n_no_smart}/{n_total} = {pct_no_smart:.0f}%. "
-            f"Ne maîtrisent pas internet : {n_no_skill}/{n_total} = {pct_no_skill:.0f}%. "
+            f"Sans smartphone : {n_no_smart}/{n_total} = {pct_no_smart:.0f}% [IC {ci_smart[0]:.0f}-{ci_smart[1]:.0f}]. "
+            f"Ne maîtrisent pas internet : {n_no_skill}/{n_total} = {pct_no_skill:.0f}% [IC {ci_skill[0]:.0f}-{ci_skill[1]:.0f}]. "
             f"FIDO2 satisfait P2 mais son déploiement suppose un terminal et une compétence "
             f"que {max(pct_no_smart, pct_no_skill):.0f}% des répondants n'ont pas.",
             False,
@@ -996,6 +1223,8 @@ def _render_lemmes():
 
     # ── LEMME 5 ──────────────────────────────────────────────────────
     elif "L5" in lemme_choice:
+        l5_pvals = []
+        l5_labels = []
         st.markdown("### Lemme 5 — Impossibilité de la livraison exclusive (P3)")
         st.markdown(
             '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;'
@@ -1045,7 +1274,8 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct7, "Présence × Destinataire du document")
-                _chi2_full(ct7)
+                _chi2_full(ct7, p_collector=l5_pvals)
+                l5_labels.append("χ² B4 × B6")
 
                 st.markdown("**Taux de livraison via I par niveau de présence**")
                 st.markdown(
@@ -1070,7 +1300,8 @@ def _render_lemmes():
                     _intermedies["section_b/B4"].map(b4_map).fillna("?"),
                 )
                 _contingency_html(ct8, "Littératie × Destinataire du document")
-                _chi2_full(ct8)
+                _chi2_full(ct8, p_collector=l5_pvals)
+                l5_labels.append("χ² B4 × A7")
 
             st.markdown("##### C4q (attente livraison exclusive) × rôle")
             st.caption("Mann-Whitney : citoyens vs intermédiaires")
@@ -1094,6 +1325,8 @@ def _render_lemmes():
                     f"U = {u_stat:.0f}, p = {p_val:.4f} ({sig})",
                     p_val < 0.05,
                 )
+                l5_pvals.append(p_val)
+                l5_labels.append("Mann-Whitney C4q")
 
         st.markdown("---")
         st.markdown("##### B4 par commune — le gradient territorial")
@@ -1118,6 +1351,8 @@ def _render_lemmes():
             commune_b4["Via I (%)"] = commune_b4["Via I (%)"].round(1)
             commune_b4 = commune_b4.sort_values("Via I (%)", ascending=False)
             st.dataframe(commune_b4, hide_index=True, use_container_width=True)
+
+        _fdr_correction_box(l5_pvals, l5_labels)
 
         _bias_box(
             '<strong>Ambiguïté B4 « remis par l\'intermédiaire »</strong> : B4 = « handed » signifie que '
