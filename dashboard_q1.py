@@ -454,7 +454,7 @@ st.markdown(
 
 # ── Navigation ──────────────────────────────────────────────────────────
 
-page = st.radio("", ["Lemmes", "Base de données", "Guide de lecture"], horizontal=True, label_visibility="collapsed")
+page = st.radio("", ["Guide de lecture", "Lemmes", "Base de données"], horizontal=True, label_visibility="collapsed")
 
 
 # ── Tab Lemmes ────────────────────────────────────────────────────────
