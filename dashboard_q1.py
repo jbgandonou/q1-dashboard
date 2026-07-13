@@ -1917,164 +1917,89 @@ if page == "Base de données":
     _render_bdd()
 
 if page == "Guide de lecture":
-    st.markdown("## Guide de lecture du dashboard")
+    st.markdown("## Comment lire ce dashboard")
+
     st.markdown(
-        "Ce guide permet de naviguer dans le dashboard sans assistance. "
-        "Il s'adresse à un lecteur familier de la méthodologie statistique "
-        "mais qui découvre l'interface et les variables de cette enquête."
+        '<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;'
+        'padding:20px 24px;margin-bottom:24px;font-size:15px;color:#1e40af;line-height:1.8">'
+        '<strong>En 3 étapes :</strong><br>'
+        '1. Cliquez sur <strong>Lemmes</strong> dans la barre de navigation ci-dessus<br>'
+        '2. Choisissez un lemme dans le menu déroulant (L1 à L5)<br>'
+        '3. Descendez : les <strong>tableaux</strong> montrent les données croisées, '
+        'les <strong>encadrés colorés</strong> en dessous donnent le verdict'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
-    st.markdown("### Objet de l'enquête")
+    st.markdown("### Lire un encadré de résultat")
     st.markdown(
-        "L'enquête Q1 porte sur l'intermédiation dans l'e-gouvernement au Bénin. "
-        "Elle interroge deux populations dans le département de l'Ouémé : "
-        "des **citoyens** ayant effectué une démarche administrative en ligne, "
-        "et des **intermédiaires** (secrétaires communaux, cybercafés, proches) "
-        "qui effectuent ces démarches pour le compte d'autrui. "
-        "L'échantillonnage par quotas couvre 9 communes, 49 arrondissements, "
-        "stratifiés selon deux axes : urbain/rural et connectivité réseau (connectée/dégradée)."
+        '<div style="display:flex;gap:16px;margin-bottom:20px;flex-wrap:wrap">'
+        '<div style="flex:1;min-width:250px;background:#f0fdf4;border:1px solid #86efac;'
+        'border-radius:10px;padding:14px 18px">'
+        '<strong style="color:#166534">Encadré vert</strong><br>'
+        '<span style="font-size:14px;color:#166534">'
+        'Association significative (p < 0.05). Le lien entre les deux variables est statistiquement établi.'
+        '</span></div>'
+        '<div style="flex:1;min-width:250px;background:#fef2f2;border:1px solid #fca5a5;'
+        'border-radius:10px;padding:14px 18px">'
+        '<strong style="color:#991b1b">Encadré rouge</strong><br>'
+        '<span style="font-size:14px;color:#991b1b">'
+        'Non significatif ou alerte. Le lien n\'est pas démontré, ou un problème méthodologique est signalé.'
+        '</span></div>'
+        '</div>',
+        unsafe_allow_html=True,
     )
 
-    st.markdown("### Structure du dashboard")
+    st.markdown("### Les 5 lemmes en un coup d'oeil")
     st.markdown(
-        "Le dashboard comporte trois onglets. "
-        "**Lemmes** présente les analyses statistiques organisées autour de cinq lemmes "
-        "qui correspondent aux propriétés de sécurité formalisées dans la thèse. "
-        "**Base de données** donne accès aux données brutes filtrables et exportables en CSV. "
-        "**Guide de lecture** est la page que vous consultez."
-    )
-
-    st.markdown("### Les cinq lemmes")
-    st.markdown(
-        "Chaque lemme teste empiriquement les prémisses d'un résultat "
-        "déductif du modèle formel d'intermédiation aveugle. "
-        "L'enquête ne prouve pas les lemmes : elle vérifie que leurs conditions "
-        "d'application existent sur le terrain."
-    )
-    lemmes_data = [
-        ("L1", "Observabilité du terminal",
-         "C1 (absence de terminal ou de compétence) et C3 (intermédiation) coexistent-elles ?",
-         "A5, A7, B2, B7"),
-        ("L2", "Indistinguabilité du consentement",
-         "Le consentement du citoyen est-il distinguable d'une action imposée par l'intermédiaire ?",
-         "B3, B3_int, B6, A7"),
-        ("L3", "Accessibilité du secret",
-         "Le secret (mot de passe) est-il exposé à l'intermédiaire ?",
-         "B3, B9, C5q, C6q"),
-        ("L4", "Résistance cryptographique (FIDO2)",
-         "Le parc de terminaux et la littératie permettent-ils un mécanisme cryptographique ?",
-         "A5, A7"),
-        ("L5", "Impossibilité de la livraison exclusive",
-         "Le document final parvient-il directement au citoyen sans passer par l'intermédiaire ?",
-         "B4, B6, C4q, A7"),
-    ]
-    html_lemmes = (
         '<table style="width:100%;border-collapse:collapse;font-size:14px;'
-        'border:1px solid #d1d5db;margin-bottom:16px">'
-        '<tr><th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db">Lemme</th>'
-        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db">Propriété</th>'
-        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db">Question empirique</th>'
-        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db">Items clés</th></tr>'
-    )
-    for i, (code, nom, question, items) in enumerate(lemmes_data):
-        bg = "#f8fafc" if i % 2 else "#fff"
-        html_lemmes += (
-            f'<tr><td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
-            f'font-weight:700;color:#2B5A8E">{code}</td>'
-            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{nom}</td>'
-            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{question}</td>'
-            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
-            f'font-family:monospace;font-size:12px">{items}</td></tr>'
-        )
-    html_lemmes += "</table>"
-    st.markdown(html_lemmes, unsafe_allow_html=True)
-
-    st.markdown("### Codage des variables")
-    st.markdown(
-        "Les items du questionnaire suivent un préfixe par section : "
-        "**A** (profil sociodémographique), **B** (pratique de la dernière démarche), "
-        "**C** (perceptions et incidents). "
-        "Les items suffixés **\\_int** sont la version miroir posée aux intermédiaires "
-        "(par exemple B3 pour le citoyen, B3_int pour l'intermédiaire). "
-        "Les items suffixés **q** (C1q à C6q) sont des échelles de Likert 1-5."
-    )
-    st.markdown(
-        "Les tableaux de contingence croisent toujours une variable dépendante "
-        "(typiquement B2 : qui a opéré le terminal) avec un prédicteur "
-        "(A7 : littératie, A5 : type de téléphone, etc.)."
+        'border:1px solid #d1d5db;margin-bottom:20px">'
+        '<tr style="background:#2B5A8E;color:#fff">'
+        '<th style="padding:10px 14px;text-align:left;border:1px solid #d1d5db">Lemme</th>'
+        '<th style="padding:10px 14px;text-align:left;border:1px solid #d1d5db">Ce qu\'il montre</th></tr>'
+        '<tr><td style="padding:8px 14px;border:1px solid #e5e7eb;font-weight:700;color:#2B5A8E">L1</td>'
+        '<td style="padding:8px 14px;border:1px solid #e5e7eb">'
+        'L\'intermédiation est massive et liée au manque de littératie numérique</td></tr>'
+        '<tr style="background:#f8fafc"><td style="padding:8px 14px;border:1px solid #e5e7eb;font-weight:700;color:#2B5A8E">L2</td>'
+        '<td style="padding:8px 14px;border:1px solid #e5e7eb">'
+        'Le consentement du citoyen n\'est pas distinguable d\'une action imposée</td></tr>'
+        '<tr><td style="padding:8px 14px;border:1px solid #e5e7eb;font-weight:700;color:#2B5A8E">L3</td>'
+        '<td style="padding:8px 14px;border:1px solid #e5e7eb">'
+        'Le mot de passe est exposé à l\'intermédiaire</td></tr>'
+        '<tr style="background:#f8fafc"><td style="padding:8px 14px;border:1px solid #e5e7eb;font-weight:700;color:#2B5A8E">L4</td>'
+        '<td style="padding:8px 14px;border:1px solid #e5e7eb">'
+        'Le parc de terminaux permettrait une solution cryptographique (FIDO2)</td></tr>'
+        '<tr><td style="padding:8px 14px;border:1px solid #e5e7eb;font-weight:700;color:#2B5A8E">L5</td>'
+        '<td style="padding:8px 14px;border:1px solid #e5e7eb">'
+        'Le document final ne parvient pas directement au citoyen</td></tr>'
+        '</table>',
+        unsafe_allow_html=True,
     )
 
-    st.markdown("### Lire les résultats statistiques")
+    st.markdown("### Ce que contiennent les sections dépliables")
     st.markdown(
-        "Chaque croisement affiche un tableau de contingence (effectifs observés) "
-        "suivi d'un encadré de résultat. L'encadré contient :"
+        "Sous chaque lemme, des sections dépliables (cliquez pour ouvrir) "
+        "donnent le détail technique : fréquences attendues, correction pour tests multiples, "
+        "rappel des questions du questionnaire. "
+        "Ces sections ne sont pas nécessaires pour comprendre les conclusions "
+        "mais permettent de vérifier la rigueur des calculs."
     )
-    stats_items = [
-        ("Chi-deux (χ²)", "Teste l'indépendance entre les deux variables. "
-         "Un p < 0.05 rejette l'hypothèse d'indépendance."),
-        ("V de Cramér", "Taille d'effet normalisée entre 0 et 1. "
-         "En dessous de 0.10 : association négligeable. "
-         "Entre 0.10 et 0.30 : faible à modérée. Au-delà de 0.30 : forte."),
-        ("Encadré vert", "Résultat significatif (p < 0.05)."),
-        ("Encadré rouge", "Résultat non significatif ou alerte méthodologique."),
-        ("Fisher exact", "Utilisé à la place du chi-deux quand les effectifs attendus "
-         "sont trop faibles (< 5 dans plus de 20% des cellules)."),
-        ("Mann-Whitney U", "Comparaison de distributions ordinales (échelles de Likert) "
-         "entre deux groupes. Le r est la taille d'effet (r = Z / √n)."),
-        ("Correction Bonferroni / BH", "Quand plusieurs tests sont effectués dans un même lemme, "
-         "les p-values sont ajustées pour contrôler le taux de faux positifs. "
-         "L'expander en bas de chaque lemme montre le détail."),
-    ]
-    html_stats = (
+
+    st.markdown("### Vocabulaire rapide")
+    st.markdown(
         '<table style="width:100%;border-collapse:collapse;font-size:14px;'
-        'border:1px solid #d1d5db;margin-bottom:16px">'
-        '<tr><th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db;width:200px">Élément</th>'
-        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
-        'border:1px solid #d1d5db">Interprétation</th></tr>'
-    )
-    for i, (elem, interp) in enumerate(stats_items):
-        bg = "#f8fafc" if i % 2 else "#fff"
-        html_stats += (
-            f'<tr><td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
-            f'font-weight:600">{elem}</td>'
-            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{interp}</td></tr>'
-        )
-    html_stats += "</table>"
-    st.markdown(html_stats, unsafe_allow_html=True)
-
-    st.markdown("### Filtrage et exclusions")
-    st.markdown(
-        "Le nombre de répondants affiché en haut du dashboard correspond aux soumissions "
-        "**exploitables**, après exclusion automatique de cinq types de cas : "
-        "durée trop courte (seuil adaptatif : 6 secondes par question répondue), "
-        "durée supérieure à 3 heures, "
-        "absence de réponse à A1 (rôle), "
-        "absence de consentement, "
-        "et doublons consécutifs (même enquêteur, même arrondissement, réponses identiques). "
-        "L'onglet Base de données permet de filtrer par statut (exploitables / exclues) "
-        "et de vérifier les cas exclus."
-    )
-
-    st.markdown("### Pondération")
-    st.markdown(
-        "Un expander « Pondération post-stratification » apparaît dans l'onglet Lemmes. "
-        "Il recalcule les proportions globales en corrigeant le déséquilibre urbain/rural "
-        "par rapport au RGPH-4 (INSAE 2013). "
-        "Le DEFF (design effect) mesure la perte de précision due à la pondération : "
-        "en dessous de 1.5, les résultats non pondérés restent fiables."
-    )
-
-    st.markdown("### Parcours de lecture recommandé")
-    st.markdown(
-        "Commencer par L1 qui établit le fait central : l'intermédiation est massive "
-        "et corrélée au manque de littératie numérique. "
-        "L2 et L3 montrent que cette intermédiation compromet le consentement et le secret. "
-        "L4 évalue la faisabilité d'une contre-mesure cryptographique (FIDO2). "
-        "L5 documente l'impossibilité actuelle de garantir la livraison exclusive du document "
-        "au citoyen. Les cinq lemmes se lisent dans l'ordre, chacun s'appuyant sur le précédent."
+        'border:1px solid #d1d5db">'
+        '<tr style="background:#2B5A8E;color:#fff">'
+        '<th style="padding:8px 14px;text-align:left;border:1px solid #d1d5db;width:180px">Terme</th>'
+        '<th style="padding:8px 14px;text-align:left;border:1px solid #d1d5db">Signification</th></tr>'
+        '<tr><td style="padding:7px 14px;border:1px solid #e5e7eb;font-weight:600">p-value</td>'
+        '<td style="padding:7px 14px;border:1px solid #e5e7eb">Probabilité d\'observer ce résultat par hasard. Sous 0.05 = significatif.</td></tr>'
+        '<tr style="background:#f8fafc"><td style="padding:7px 14px;border:1px solid #e5e7eb;font-weight:600">V de Cramér</td>'
+        '<td style="padding:7px 14px;border:1px solid #e5e7eb">Force du lien : < 0.10 négligeable, 0.10-0.30 modéré, > 0.30 fort.</td></tr>'
+        '<tr><td style="padding:7px 14px;border:1px solid #e5e7eb;font-weight:600">Citoyens / Intermédiaires</td>'
+        '<td style="padding:7px 14px;border:1px solid #e5e7eb">Les deux populations interrogées. Le nombre est indiqué en haut du dashboard.</td></tr>'
+        '<tr style="background:#f8fafc"><td style="padding:7px 14px;border:1px solid #e5e7eb;font-weight:600">Exploitables</td>'
+        '<td style="padding:7px 14px;border:1px solid #e5e7eb">Soumissions retenues après exclusion des doublons, durées aberrantes et absences de consentement.</td></tr>'
+        '</table>',
+        unsafe_allow_html=True,
     )
