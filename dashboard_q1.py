@@ -420,15 +420,35 @@ if not token:
     st.stop()
 
 # Header
-hdr_l, hdr_r = st.columns([5, 1])
+hdr_l, hdr_m, hdr_r = st.columns([5, 1, 1])
 with hdr_l:
     st.markdown("# Suivi des collectes Q1")
     st.caption("Intermédiation dans l'e-gouvernement — Ouémé, Bénin")
+with hdr_m:
+    st.write("")
+    reading = st.toggle("Mode lecture", value=False)
 with hdr_r:
     st.write("")
     if st.button("Rafraichir", type="primary", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
+
+if reading:
+    st.markdown("""<style>
+        .block-container { max-width: 900px !important; margin: 0 auto; }
+        table { font-size: 15px; }
+        table th { font-size: 13px; }
+        table td { padding: 10px 14px; }
+        p, li, .stMarkdown { font-size: 16px !important; line-height: 1.7 !important; }
+        h1 { font-size: 2rem !important; }
+        h2 { font-size: 1.5rem !important; }
+        h3 { font-size: 1.25rem !important; }
+        h5 { font-size: 1.1rem !important; }
+        div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 30px !important; }
+        div[data-testid="stMetric"] label { font-size: 13px !important; }
+        .gauge .gauge-value { font-size: 32px; }
+        .alert-box .alert-item { font-size: 15px; }
+    </style>""", unsafe_allow_html=True)
 
 try:
     raw = fetch_kobo(token)
