@@ -420,35 +420,15 @@ if not token:
     st.stop()
 
 # Header
-hdr_l, hdr_m, hdr_r = st.columns([5, 1, 1])
+hdr_l, hdr_r = st.columns([5, 1])
 with hdr_l:
     st.markdown("# Suivi des collectes Q1")
     st.caption("Intermédiation dans l'e-gouvernement — Ouémé, Bénin")
-with hdr_m:
-    st.write("")
-    reading = st.toggle("Mode lecture", value=False)
 with hdr_r:
     st.write("")
     if st.button("Rafraichir", type="primary", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
-
-if reading:
-    st.markdown("""<style>
-        .block-container { max-width: 900px !important; margin: 0 auto; }
-        table { font-size: 15px; }
-        table th { font-size: 13px; }
-        table td { padding: 10px 14px; }
-        p, li, .stMarkdown { font-size: 16px !important; line-height: 1.7 !important; }
-        h1 { font-size: 2rem !important; }
-        h2 { font-size: 1.5rem !important; }
-        h3 { font-size: 1.25rem !important; }
-        h5 { font-size: 1.1rem !important; }
-        div[data-testid="stMetric"] [data-testid="stMetricValue"] { font-size: 30px !important; }
-        div[data-testid="stMetric"] label { font-size: 13px !important; }
-        .gauge .gauge-value { font-size: 32px; }
-        .alert-box .alert-item { font-size: 15px; }
-    </style>""", unsafe_allow_html=True)
 
 try:
     raw = fetch_kobo(token)
@@ -474,7 +454,7 @@ st.markdown(
 
 # ── Navigation ──────────────────────────────────────────────────────────
 
-page = st.radio("", ["Lemmes", "Base de données"], horizontal=True, label_visibility="collapsed")
+page = st.radio("", ["Lemmes", "Base de données", "Guide de lecture"], horizontal=True, label_visibility="collapsed")
 
 
 # ── Tab Lemmes ────────────────────────────────────────────────────────
@@ -1935,3 +1915,166 @@ def _render_bdd():
 
 if page == "Base de données":
     _render_bdd()
+
+if page == "Guide de lecture":
+    st.markdown("## Guide de lecture du dashboard")
+    st.markdown(
+        "Ce guide permet de naviguer dans le dashboard sans assistance. "
+        "Il s'adresse à un lecteur familier de la méthodologie statistique "
+        "mais qui découvre l'interface et les variables de cette enquête."
+    )
+
+    st.markdown("### Objet de l'enquête")
+    st.markdown(
+        "L'enquête Q1 porte sur l'intermédiation dans l'e-gouvernement au Bénin. "
+        "Elle interroge deux populations dans le département de l'Ouémé : "
+        "des **citoyens** ayant effectué une démarche administrative en ligne, "
+        "et des **intermédiaires** (secrétaires communaux, cybercafés, proches) "
+        "qui effectuent ces démarches pour le compte d'autrui. "
+        "L'échantillonnage par quotas couvre 9 communes, 49 arrondissements, "
+        "stratifiés selon deux axes : urbain/rural et connectivité réseau (connectée/dégradée)."
+    )
+
+    st.markdown("### Structure du dashboard")
+    st.markdown(
+        "Le dashboard comporte trois onglets. "
+        "**Lemmes** présente les analyses statistiques organisées autour de cinq lemmes "
+        "qui correspondent aux propriétés de sécurité formalisées dans la thèse. "
+        "**Base de données** donne accès aux données brutes filtrables et exportables en CSV. "
+        "**Guide de lecture** est la page que vous consultez."
+    )
+
+    st.markdown("### Les cinq lemmes")
+    st.markdown(
+        "Chaque lemme teste empiriquement les prémisses d'un résultat "
+        "déductif du modèle formel d'intermédiation aveugle. "
+        "L'enquête ne prouve pas les lemmes : elle vérifie que leurs conditions "
+        "d'application existent sur le terrain."
+    )
+    lemmes_data = [
+        ("L1", "Observabilité du terminal",
+         "C1 (absence de terminal ou de compétence) et C3 (intermédiation) coexistent-elles ?",
+         "A5, A7, B2, B7"),
+        ("L2", "Indistinguabilité du consentement",
+         "Le consentement du citoyen est-il distinguable d'une action imposée par l'intermédiaire ?",
+         "B3, B3_int, B6, A7"),
+        ("L3", "Accessibilité du secret",
+         "Le secret (mot de passe) est-il exposé à l'intermédiaire ?",
+         "B3, B9, C5q, C6q"),
+        ("L4", "Résistance cryptographique (FIDO2)",
+         "Le parc de terminaux et la littératie permettent-ils un mécanisme cryptographique ?",
+         "A5, A7"),
+        ("L5", "Impossibilité de la livraison exclusive",
+         "Le document final parvient-il directement au citoyen sans passer par l'intermédiaire ?",
+         "B4, B6, C4q, A7"),
+    ]
+    html_lemmes = (
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;'
+        'border:1px solid #d1d5db;margin-bottom:16px">'
+        '<tr><th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db">Lemme</th>'
+        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db">Propriété</th>'
+        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db">Question empirique</th>'
+        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db">Items clés</th></tr>'
+    )
+    for i, (code, nom, question, items) in enumerate(lemmes_data):
+        bg = "#f8fafc" if i % 2 else "#fff"
+        html_lemmes += (
+            f'<tr><td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
+            f'font-weight:700;color:#2B5A8E">{code}</td>'
+            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{nom}</td>'
+            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{question}</td>'
+            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
+            f'font-family:monospace;font-size:12px">{items}</td></tr>'
+        )
+    html_lemmes += "</table>"
+    st.markdown(html_lemmes, unsafe_allow_html=True)
+
+    st.markdown("### Codage des variables")
+    st.markdown(
+        "Les items du questionnaire suivent un préfixe par section : "
+        "**A** (profil sociodémographique), **B** (pratique de la dernière démarche), "
+        "**C** (perceptions et incidents). "
+        "Les items suffixés **\\_int** sont la version miroir posée aux intermédiaires "
+        "(par exemple B3 pour le citoyen, B3_int pour l'intermédiaire). "
+        "Les items suffixés **q** (C1q à C6q) sont des échelles de Likert 1-5."
+    )
+    st.markdown(
+        "Les tableaux de contingence croisent toujours une variable dépendante "
+        "(typiquement B2 : qui a opéré le terminal) avec un prédicteur "
+        "(A7 : littératie, A5 : type de téléphone, etc.)."
+    )
+
+    st.markdown("### Lire les résultats statistiques")
+    st.markdown(
+        "Chaque croisement affiche un tableau de contingence (effectifs observés) "
+        "suivi d'un encadré de résultat. L'encadré contient :"
+    )
+    stats_items = [
+        ("Chi-deux (χ²)", "Teste l'indépendance entre les deux variables. "
+         "Un p < 0.05 rejette l'hypothèse d'indépendance."),
+        ("V de Cramér", "Taille d'effet normalisée entre 0 et 1. "
+         "En dessous de 0.10 : association négligeable. "
+         "Entre 0.10 et 0.30 : faible à modérée. Au-delà de 0.30 : forte."),
+        ("Encadré vert", "Résultat significatif (p < 0.05)."),
+        ("Encadré rouge", "Résultat non significatif ou alerte méthodologique."),
+        ("Fisher exact", "Utilisé à la place du chi-deux quand les effectifs attendus "
+         "sont trop faibles (< 5 dans plus de 20% des cellules)."),
+        ("Mann-Whitney U", "Comparaison de distributions ordinales (échelles de Likert) "
+         "entre deux groupes. Le r est la taille d'effet (r = Z / √n)."),
+        ("Correction Bonferroni / BH", "Quand plusieurs tests sont effectués dans un même lemme, "
+         "les p-values sont ajustées pour contrôler le taux de faux positifs. "
+         "L'expander en bas de chaque lemme montre le détail."),
+    ]
+    html_stats = (
+        '<table style="width:100%;border-collapse:collapse;font-size:14px;'
+        'border:1px solid #d1d5db;margin-bottom:16px">'
+        '<tr><th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db;width:200px">Élément</th>'
+        '<th style="background:#2B5A8E;color:#fff;padding:8px 12px;text-align:left;'
+        'border:1px solid #d1d5db">Interprétation</th></tr>'
+    )
+    for i, (elem, interp) in enumerate(stats_items):
+        bg = "#f8fafc" if i % 2 else "#fff"
+        html_stats += (
+            f'<tr><td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db;'
+            f'font-weight:600">{elem}</td>'
+            f'<td style="background:{bg};padding:7px 12px;border:1px solid #d1d5db">{interp}</td></tr>'
+        )
+    html_stats += "</table>"
+    st.markdown(html_stats, unsafe_allow_html=True)
+
+    st.markdown("### Filtrage et exclusions")
+    st.markdown(
+        "Le nombre de répondants affiché en haut du dashboard correspond aux soumissions "
+        "**exploitables**, après exclusion automatique de cinq types de cas : "
+        "durée trop courte (seuil adaptatif : 6 secondes par question répondue), "
+        "durée supérieure à 3 heures, "
+        "absence de réponse à A1 (rôle), "
+        "absence de consentement, "
+        "et doublons consécutifs (même enquêteur, même arrondissement, réponses identiques). "
+        "L'onglet Base de données permet de filtrer par statut (exploitables / exclues) "
+        "et de vérifier les cas exclus."
+    )
+
+    st.markdown("### Pondération")
+    st.markdown(
+        "Un expander « Pondération post-stratification » apparaît dans l'onglet Lemmes. "
+        "Il recalcule les proportions globales en corrigeant le déséquilibre urbain/rural "
+        "par rapport au RGPH-4 (INSAE 2013). "
+        "Le DEFF (design effect) mesure la perte de précision due à la pondération : "
+        "en dessous de 1.5, les résultats non pondérés restent fiables."
+    )
+
+    st.markdown("### Parcours de lecture recommandé")
+    st.markdown(
+        "Commencer par L1 qui établit le fait central : l'intermédiation est massive "
+        "et corrélée au manque de littératie numérique. "
+        "L2 et L3 montrent que cette intermédiation compromet le consentement et le secret. "
+        "L4 évalue la faisabilité d'une contre-mesure cryptographique (FIDO2). "
+        "L5 documente l'impossibilité actuelle de garantir la livraison exclusive du document "
+        "au citoyen. Les cinq lemmes se lisent dans l'ordre, chacun s'appuyant sur le précédent."
+    )
